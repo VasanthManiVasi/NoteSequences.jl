@@ -1,0 +1,13 @@
+name = "NoteSequences"
+uuid = "2f29771e-160e-464a-933c-2d32f3adf79a"
+authors = ["Vasanth <vasanth.mani.vasi.2@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
