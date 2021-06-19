@@ -8,6 +8,7 @@ DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 MIDI = "f57c4921-e30c-5f49-b073-3f2f2ada663e"
 
 [compat]
+DataStructures = "0.18"
 MIDI = "2"
 julia = "1"
 
