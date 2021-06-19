@@ -1,7 +1,7 @@
 export getinstruments
 
-using MIDI: NoteOnEvent, NoteOffEvent, ProgramChangeEvent, ControlChangeEvent, PitchBendEvent
-using MIDI: toabsolutetime!, channelnumber
+using MIDI: NoteOnEvent, NoteOffEvent, ProgramChangeEvent, ControlChangeEvent, PitchBendEvent, channelnumber
+import MIDI: toabsolutetime!
 using DataStructures: OrderedDict
 
 mutable struct Instrument
@@ -11,14 +11,23 @@ mutable struct Instrument
     pitch_bends::Vector{PitchBendEvent}
 end
 
+function Base.show(io::IO, instrument::Instrument)
+    N = length(instrument.notes)
+    C = length(instrument.control_changes)
+    P = length(instrument.pitch_bends)
+    pn = instrument.program
+    print(io, "Instrument(program = $pn) with $N Notes, $C ControlChange, $P PitchBend")
+end
+
 function Instrument(program::Int)
-    Instrument(Notes(), program, Vector{ControlChangeEvent}(), Vector{ProgramChangeEvent}())
+    Instrument(Notes(), program, Vector{ControlChangeEvent}(), Vector{PitchBendEvent}())
 end
 
 function toabsolutetime!(midi::MIDIFile)
     for track in midi.tracks
         toabsolutetime!(track)
     end
+    midi
 end
 
 function channel(event::MIDIEvent)
@@ -32,19 +41,19 @@ function getinstruments(midi::MIDIFile)
     # Create an instrument map which maps:
     # (program, channel, track) => Instrument
     instrument_map = OrderedDict{Tuple{Int64, Int64, Int64}, Instrument}()
-    
+
     for (track_num, track) in enumerate(midi.tracks)
         # Create a map of channel => program to map the channels to the current playing instrument
         # Initially all channels map to the default program (0)
         current_instrument = zeros(Int, 16)
 
         # Create a map of (channel, note) => (NoteOn position, velocity)
-        note_map = Dict{Tuple{Int, Int}, Vector{Tuple{Int, Int}}}()
+        note_map = Dict{Tuple{Int, Int}, Vector{Tuple{Int, Int}}}() # TODO: Use default dict instead
 
         for (idx, event) in enumerate(track.events)
             if event isa NoteOnEvent && event.velocity > 0
                 key = (channel(event), event.note)
-                if haskey(note_map, key) 
+                if haskey(note_map, key)
                     push!(note_map[key], (event.dT, event.velocity))
                 else
                     note_map[key] = [(event.dT, event.velocity)]
@@ -60,13 +69,13 @@ function getinstruments(midi::MIDIFile)
                     program = current_instrument[channel(event) + 1]
                     key = (program, channel(event), track_num)
                     if !haskey(instrument_map, key)
-                        # Create an instrument with the default program number
+                        # Create an instrument with the current program number
                         instrument = Instrument(program)
-                        instrument_map[(program, channel(event), track_num)] = instrument
+                        instrument_map[key] = instrument
                     else
                         instrument = instrument_map[key]
                     end
-
+                    
                     for (position, velocity) in turnoff_notes
                         note = Note(event.note, velocity, position, end_pos - position, channel(event))
                         push!(instrument.notes, note)
@@ -95,9 +104,8 @@ function getinstruments(midi::MIDIFile)
                 program = current_instrument[channel(event) + 1]
                 key = (program, channel(event), track_num)
                 if !haskey(instrument_map, key)
-                    # Create an instrument with the default program number
                     instrument = Instrument(program)
-                    instrument_map[(0, channel(event), track_num)] = instrument
+                    instrument_map[key] = instrument
                 else
                     instrument = instrument_map[key]
                 end
@@ -109,10 +117,10 @@ function getinstruments(midi::MIDIFile)
             end
         end
     end
+    
     instruments = Vector{Instrument}()
     for instrument in values(instrument_map)
         push!(instruments, instrument)
     end
     return instruments
 end
-        
