@@ -2,7 +2,6 @@ export getinstruments
 
 using MIDI: NoteOnEvent, NoteOffEvent, ProgramChangeEvent, ControlChangeEvent, PitchBendEvent, channelnumber
 import MIDI: toabsolutetime!
-using DataStructures: OrderedDict
 
 Base.@kwdef struct Instrument
     program::Int = 0
@@ -45,9 +44,13 @@ function channel(event::MIDIEvent)
     Int(channelnumber(event))
 end
 
-function getinstruments(midi::MIDIFile)
+function getinstruments(midi::MIDIFile, time=:relative)
     # TODO: Work on a copy of the midi instead of modifying the midi file
-    toabsolutetime!(midi)
+    if time === :relative
+        toabsolutetime!(midi)
+    elseif time != :absolute
+        throw(ArgumentError("`time` should be either :absolute or :relative"))
+    end
 
     # Create an instrument map which maps:
     # (program, channel, track) => Instrument
@@ -131,8 +134,10 @@ function getinstruments(midi::MIDIFile)
         end
     end
     
-    # Convert midi back to relative time
-    torelativetime!(midi)
+    if time === :relative
+        # Convert midi back to relative time
+        torelativetime!(midi)
+    end
 
     instruments = Vector{Instrument}()
     for instrument in values(instrument_map)

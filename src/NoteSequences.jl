@@ -1,6 +1,6 @@
 module NoteSequences
 
-using MIDI
+using MIDI, DataStructures
 
 include("instruments.jl")
 include("notesequence.jl")
