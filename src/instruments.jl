@@ -4,11 +4,11 @@ using MIDI: NoteOnEvent, NoteOffEvent, ProgramChangeEvent, ControlChangeEvent, P
 import MIDI: toabsolutetime!
 using DataStructures: OrderedDict
 
-mutable struct Instrument
-    notes::Notes
-    program::Int
-    control_changes::Vector{ControlChangeEvent}
-    pitch_bends::Vector{PitchBendEvent}
+Base.@kwdef struct Instrument
+    program::Int = 0
+    notes::Notes = Notes()
+    pitch_bends::Vector{PitchBendEvent} = []
+    control_changes::Vector{ControlChangeEvent} = []
 end
 
 function Base.show(io::IO, instrument::Instrument)
@@ -19,13 +19,24 @@ function Base.show(io::IO, instrument::Instrument)
     print(io, "Instrument(program = $pn) with $N Notes, $C ControlChange, $P PitchBend")
 end
 
-function Instrument(program::Int)
-    Instrument(Notes(), program, Vector{ControlChangeEvent}(), Vector{PitchBendEvent}())
-end
-
 function toabsolutetime!(midi::MIDIFile)
     for track in midi.tracks
         toabsolutetime!(track)
+    end
+    midi
+end
+
+function torelativetime!(track::MIDITrack)
+    time = 0
+    for event in track.events
+        event.dT -= time
+        time += event.dT
+    end
+end
+
+function torelativetime!(midi::MIDIFile)
+    for track in midi.tracks
+        torelativetime!(track)
     end
     midi
 end
@@ -35,7 +46,7 @@ function channel(event::MIDIEvent)
 end
 
 function getinstruments(midi::MIDIFile)
-    # TODO: Work on a copy of the midi since this function modifies it to abs time
+    # TODO: Work on a copy of the midi instead of modifying the midi file
     toabsolutetime!(midi)
 
     # Create an instrument map which maps:
@@ -70,7 +81,7 @@ function getinstruments(midi::MIDIFile)
                     key = (program, channel(event), track_num)
                     if !haskey(instrument_map, key)
                         # Create an instrument with the current program number
-                        instrument = Instrument(program)
+                        instrument = Instrument(program=program)
                         instrument_map[key] = instrument
                     else
                         instrument = instrument_map[key]
@@ -95,8 +106,8 @@ function getinstruments(midi::MIDIFile)
                 if haskey(instrument_map, key) && event.program != 0
                     instrument = instrument_map[key]
                     if isempty(instrument.notes)
-                        instrument.program = event.program
-                        instrument_map[(event.program, channel(event), track_num)] = instrument
+                        newinstrument = Instrument(event.program, instrument.notes, instrument.pitch_bends, instrument.control_changes)
+                        instrument_map[(event.program, channel(event), track_num)] = newinstrument
                         delete!(instrument_map, key)
                     end
                 end
@@ -104,20 +115,25 @@ function getinstruments(midi::MIDIFile)
                 program = current_instrument[channel(event) + 1]
                 key = (program, channel(event), track_num)
                 if !haskey(instrument_map, key)
-                    instrument = Instrument(program)
+                    instrument = Instrument(program=program)
                     instrument_map[key] = instrument
                 else
                     instrument = instrument_map[key]
                 end
+
+                # Store a copy of the events
                 if event isa ControlChangeEvent
-                    push!(instrument.control_changes, event)
+                    push!(instrument.control_changes, ControlChangeEvent(event.dT, event.status, event.controller, event.value))
                 elseif event isa PitchBendEvent
-                    push!(instrument.pitch_bends, event)
+                    push!(instrument.pitch_bends, PitchBendEvent(event.dT, event.status, event.pitch))
                 end
             end
         end
     end
     
+    # Convert midi back to relative time
+    torelativetime!(midi)
+
     instruments = Vector{Instrument}()
     for instrument in values(instrument_map)
         push!(instruments, instrument)
