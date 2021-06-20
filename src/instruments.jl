@@ -1,4 +1,4 @@
-export getinstruments
+export getinstruments, getmiditracks
 
 using MIDI: NoteOnEvent, NoteOffEvent, ProgramChangeEvent, ControlChangeEvent, PitchBendEvent, channelnumber
 import MIDI: toabsolutetime!
@@ -144,4 +144,39 @@ function getinstruments(midi::MIDIFile, time=:relative)
         push!(instruments, instrument)
     end
     return instruments
+end
+
+function getmiditracks(instruments::Vector{Instrument})
+    tracks = MIDITrack[]
+    for (ins_num, ins) in enumerate(instruments)
+        track = MIDITrack()
+        ins_channel = (ins_num - 1) % 16
+
+        # Add a program change event at the beginning
+        push!(track.events, ProgramChangeEvent(0, ins.program, channel = ins_channel))
+
+        # Add control change events
+        for event in ins.control_changes
+            push!(track.events, ControlChangeEvent(event.dT, event.controller, event.value, channel = ins_channel))
+        end
+
+        # Add pitch bend events
+        for event in ins.pitch_bends
+            push!(track.events, PitchBendEvent(event.dT, event.pitch, channel = ins_channel))
+        end
+
+        # Sort the events by time and convert them to relative time
+        sort!(track.events, by=event->event.dT)
+        torelativetime!(track)
+
+        # Alter the channel for each note
+        for note in ins.notes
+            note.channel = ins_channel
+        end
+        addnotes!(track, ins.notes)
+
+        push!(tracks, track)
+    end
+
+    tracks
 end
