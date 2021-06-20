@@ -34,32 +34,35 @@ end
 
 Base.@kwdef mutable struct NoteSequence
     tpq::Int = 220
-    is_quantized::Bool
-    steps_per_second::Int
-    time_signatures::Vector{TimeSignatureEvent} = []
-    key_signatures::Vector{KeySignatureEvent} = []
+    isquantized::Bool
+    sps::Int
+    total_time::Int = 0
+    timesignatures::Vector{TimeSignatureEvent} = []
+    keysignatures::Vector{KeySignatureEvent} = []
     tempos::Vector{Tempo} = []
     notes::Vector{SeqNote} = []
-    pitch_bends::Vector{PitchBend} = []
-    control_changes::Vector{ControlChange} = []
+    pitchbends::Vector{PitchBend} = []
+    controlchanges::Vector{ControlChange} = []
 end
 
-function NoteSequence(tpq::Int = 220, is_quantized::Bool = false, steps_per_second::Int = -1)
-    if is_quantized && steps_per_second <= 0
-        throw(ArgumentError("`steps_per_second` must be greater than zero for a quantized sequence"))
+function NoteSequence(tpq::Int = 220, isquantized::Bool = false, sps::Int = -1)
+    if isquantized && sps <= 0
+        throw(ArgumentError("`sps` must be greater than zero for a quantized sequence"))
     end
-    NoteSequence(tpq=tpq, is_quantized=is_quantized, steps_per_second=steps_per_second)
+    NoteSequence(tpq=tpq, isquantized=isquantized, sps=sps)
 end
 
 function Base.show(io::IO, ns::NoteSequence)
-    print(io, "NoteSequence(tpq=$(ns.tpq), is_quantized=$(ns.is_quantized), steps_per_second=$(ns.steps_per_second))\n")
-    T = length(ns.time_signatures)
-    K = length(ns.key_signatures)
+    print(io, "NoteSequence(tpq=$(ns.tpq), isquantized=$(ns.isquantized), sps=$(ns.sps))\n")
+    unit = (ns.isquantized) ? "steps" : "ticks"
+    print(io, "  Total time = $(ns.total_time) $unit\n")
+    T = length(ns.timesignatures)
+    K = length(ns.keysignatures)
     Te = length(ns.tempos)
     print(io, "  $T TimeSignatures, $K KeySignatures, $Te Tempos\n")
     N = length(ns.notes)
-    P = length(ns.pitch_bends)
-    C = length(ns.control_changes)
+    P = length(ns.pitchbends)
+    C = length(ns.controlchanges)
     print(io, "  $N Notes, $P PitchBends, $C ControlChanges\n")
 end
 
@@ -76,24 +79,28 @@ function midi_to_notesequence(midi::MIDIFile)
     toabsolutetime!(midi)
     for event in midi.tracks[1].events
         if event isa TimeSignatureEvent
-            push!(ns.time_signatures, event)
+            push!(ns.timesignatures, event)
         elseif event isa KeySignatureEvent
-            push!(ns.key_signatures, event)
+            push!(ns.keysignatures, event)
         end
     end
 
     instruments = getinstruments(midi, :absolute)
     for (ins_num, ins) in enumerate(instruments)
         for note in ins.notes
-            push!(ns.notes, SeqNote(note.pitch, note.velocity, note.position, note.position + note.duration, ins.program, ins_num))
+            seqnote = SeqNote(note.pitch, note.velocity, note.position, note.position + note.duration, ins.program, ins_num)
+            push!(ns.notes, seqnote)
+            if ns.total_time == -1 || seqnote.end_time > ns.total_time
+                ns.total_time = seqnote.end_time
+            end
         end
 
-        for event in ins.pitch_bends
-            push!(ns.pitch_bends, PitchBend(event.dT, event.pitch, ins_num, ins.program))
+        for event in ins.pitchbends
+            push!(ns.pitchbends, PitchBend(event.dT, event.pitch, ins_num, ins.program))
         end
 
-        for event in ins.control_changes
-            push!(ns.control_changes, ControlChange(event.dT, event.controller, event.value, ins_num, ins.program))
+        for event in ins.controlchanges
+            push!(ns.controlchanges, ControlChange(event.dT, event.controller, event.value, ins_num, ins.program))
         end
     end
 
@@ -117,8 +124,8 @@ function notesequence_to_midi(ns::NoteSequence)
         μs = Int(6e7 ÷ tempo.qpm)
         push!(metatrack.events, SetTempoEvent(tempo.time, μs))
     end
-    append!(metatrack.events, ns.time_signatures)
-    append!(metatrack.events, ns.key_signatures)
+    append!(metatrack.events, ns.timesignatures)
+    append!(metatrack.events, ns.keysignatures)
     push!(midifile.tracks, metatrack)
 
     # Create dicts that map (instrument_num, program) to their events
@@ -131,12 +138,12 @@ function notesequence_to_midi(ns::NoteSequence)
         push!(instrument_notes[key], Note(note.pitch, note.velocity, note.start_time, note.end_time))
     end
 
-    for pb in ns.pitch_bends
+    for pb in ns.pitchbends
         key = (pb.instrument, pb.program)
         push!(instrument_pb[key], PitchBendEvent(pb.time, pb.pitch))
     end
 
-    for cc in ns.control_changes
+    for cc in ns.controlchanges
         key = (cc.instrument, cc.program)
         push!(instrument_cc[key], ControlChangeEvent(cc.time, cc.controller, cc.value))
     end
@@ -150,8 +157,8 @@ function notesequence_to_midi(ns::NoteSequence)
         ins = Instrument(program=program)
         key = (ins_num, program)
         append!(ins.notes, instrument_notes[key])
-        append!(ins.pitch_bends, instrument_pb[key])
-        append!(ins.control_changes, instrument_cc[key])
+        append!(ins.pitchbends, instrument_pb[key])
+        append!(ins.controlchanges, instrument_cc[key])
         push!(instruments, ins)
     end
 

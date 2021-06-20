@@ -6,14 +6,14 @@ import MIDI: toabsolutetime!
 Base.@kwdef struct Instrument
     program::Int = 0
     notes::Notes = Notes()
-    pitch_bends::Vector{PitchBendEvent} = []
-    control_changes::Vector{ControlChangeEvent} = []
+    pitchbends::Vector{PitchBendEvent} = []
+    controlchanges::Vector{ControlChangeEvent} = []
 end
 
 function Base.show(io::IO, instrument::Instrument)
     N = length(instrument.notes)
-    C = length(instrument.control_changes)
-    P = length(instrument.pitch_bends)
+    C = length(instrument.controlchanges)
+    P = length(instrument.pitchbends)
     pn = instrument.program
     print(io, "Instrument(program = $pn) with $N Notes, $C ControlChange, $P PitchBend")
 end
@@ -109,7 +109,7 @@ function getinstruments(midi::MIDIFile, time=:relative)
                 if haskey(instrument_map, key) && event.program != 0
                     instrument = instrument_map[key]
                     if isempty(instrument.notes)
-                        newinstrument = Instrument(event.program, instrument.notes, instrument.pitch_bends, instrument.control_changes)
+                        newinstrument = Instrument(event.program, instrument.notes, instrument.pitchbends, instrument.controlchanges)
                         instrument_map[(event.program, channel(event), track_num)] = newinstrument
                         delete!(instrument_map, key)
                     end
@@ -126,9 +126,9 @@ function getinstruments(midi::MIDIFile, time=:relative)
 
                 # Store a copy of the events
                 if event isa ControlChangeEvent
-                    push!(instrument.control_changes, ControlChangeEvent(event.dT, event.status, event.controller, event.value))
+                    push!(instrument.controlchanges, ControlChangeEvent(event.dT, event.status, event.controller, event.value))
                 elseif event isa PitchBendEvent
-                    push!(instrument.pitch_bends, PitchBendEvent(event.dT, event.status, event.pitch))
+                    push!(instrument.pitchbends, PitchBendEvent(event.dT, event.status, event.pitch))
                 end
             end
         end
@@ -156,12 +156,12 @@ function getmiditracks(instruments::Vector{Instrument})
         push!(track.events, ProgramChangeEvent(0, ins.program, channel = ins_channel))
 
         # Add control change events
-        for event in ins.control_changes
+        for event in ins.controlchanges
             push!(track.events, ControlChangeEvent(event.dT, event.controller, event.value, channel = ins_channel))
         end
 
         # Add pitch bend events
-        for event in ins.pitch_bends
+        for event in ins.pitchbends
             push!(track.events, PitchBendEvent(event.dT, event.pitch, channel = ins_channel))
         end
 
