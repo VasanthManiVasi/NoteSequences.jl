@@ -3,7 +3,7 @@ export NoteSequence, midi_to_notesequence, notesequence_to_midi
 using MIDI
 using MIDI: TimeSignatureEvent, KeySignatureEvent, SetTempoEvent
 
-struct SeqNote
+mutable struct SeqNote
     pitch::Int
     velocity::Int
     start_time::Int
@@ -24,7 +24,7 @@ struct PitchBend
     program::Int
 end
 
-struct ControlChange
+mutable struct ControlChange
     time::Int
     controller::Int
     value::Int
@@ -166,4 +166,48 @@ function notesequence_to_midi(ns::NoteSequence)
     append!(midifile.tracks, instrument_tracks)
 
     midifile
+end
+
+const QUANTIZE_CUTOFF = 0.75
+
+function quantizedstep(ticks::Int, tpq::Int, qpm::Float64, sps::Int, cutoff=QUANTIZE_CUTOFF)
+    seconds = ticks * ms_per_tick(tpq, qpm) / 1e3
+    steps = seconds * sps
+    quantized_step = floor(Int, steps + (1 - cutoff))
+end
+
+function absolutequantize!(ns::NoteSequence, sps::Int)
+    ns.isquantized = true
+    ns.sps = sps
+
+    for tempo in ns.tempos[2:end]
+        if tempo.qpm != ns.tempos[1].qpm
+            throw(error("The NoteSequence has multiple tempo changes"))
+        end
+    end
+    qpm = ns.tempos[1].qpm
+
+    ns.total_time = quantizedstep(ns.total_time, ns.tpq, qpm, sps)
+
+    for note in ns.notes
+        note.start_time = quantizedstep(note.start_time, ns.tpq, qpm, sps)
+        note.end_time = quantizedstep(note.end_time, ns.tpq, qpm, sps)
+
+        if ns.total_time == -1 || note.end_time > ns.total_time
+            ns.total_time = note.end_time
+        end
+
+        if note.start_time < 0 || note.end_time < 0
+            throw(error("Note has negative time"))
+        end
+    end
+
+    for cc in ns.controlchanges
+        cc.time = quantizedstep(cc.time, ns.tpq, qpm, sps)
+        if cc.time < 0
+            throw(error("Control change event has negative time"))
+        end
+    end
+
+    ns
 end
