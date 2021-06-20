@@ -1,7 +1,7 @@
-export NoteSequence, midi_to_notesequence
+export NoteSequence, midi_to_notesequence, notesequence_to_midi
 
 using MIDI
-using MIDI: TimeSignatureEvent, KeySignatureEvent
+using MIDI: TimeSignatureEvent, KeySignatureEvent, SetTempoEvent
 
 struct SeqNote
     pitch::Int
@@ -67,6 +67,13 @@ function midi_to_notesequence(midi::MIDIFile)
     ns = NoteSequence(Int(midi.tpq), false)
 
     # Load meta info
+    # No need to convert midifile to absolute time since tempochanges returns absolute time automatically
+    for (time, qpm) in tempochanges(midi)
+        push!(ns.tempos, Tempo(time, qpm))
+    end
+
+    # Convert midifile to absolute time for the rest of the events
+    toabsolutetime!(midi)
     for event in midi.tracks[1].events
         if event isa TimeSignatureEvent
             push!(ns.time_signatures, event)
@@ -75,11 +82,7 @@ function midi_to_notesequence(midi::MIDIFile)
         end
     end
 
-    for (time, qpm) in tempochanges(midi)
-        push!(ns.tempos, Tempo(time, qpm))
-    end
-
-    instruments = getinstruments(midi)
+    instruments = getinstruments(midi, :absolute)
     for (ins_num, ins) in enumerate(instruments)
         for note in ins.notes
             push!(ns.notes, SeqNote(note.pitch, note.velocity, note.position, note.position + note.duration, ins.program, ins_num))
@@ -94,5 +97,66 @@ function midi_to_notesequence(midi::MIDIFile)
         end
     end
 
+    # Convert midifile back to relative time
+    torelativetime!(midi)
     return ns
+end
+
+function notesequence_to_midi(ns::NoteSequence)
+    midifile = MIDIFile()
+    midifile.tpq = ns.tpq
+
+    metatrack = MIDITrack()
+
+    if isempty(ns.tempos)
+        push!(ns.tempos, Tempo(0, 120.0))
+    end
+
+    for tempo in ns.tempos
+        # Convert qpm back to microseconds
+        μs = Int(6e7 ÷ tempo.qpm)
+        push!(metatrack.events, SetTempoEvent(tempo.time, μs))
+    end
+    append!(metatrack.events, ns.time_signatures)
+    append!(metatrack.events, ns.key_signatures)
+    push!(midifile.tracks, metatrack)
+
+    # Create dicts that map (instrument_num, program) to their events
+    instrument_notes = DefaultOrderedDict{Tuple{Int64, Int64}, Notes}(Notes)
+    instrument_pb = DefaultOrderedDict{Tuple{Int64, Int64}, Vector{PitchBendEvent}}(Vector{PitchBendEvent})
+    instrument_cc = DefaultOrderedDict{Tuple{Int64, Int64}, Vector{ControlChangeEvent}}(Vector{ControlChangeEvent})
+
+    for note in ns.notes
+        key = (note.instrument, note.program)
+        push!(instrument_notes[key], Note(note.pitch, note.velocity, note.start_time, note.end_time))
+    end
+
+    for pb in ns.pitch_bends
+        key = (pb.instrument, pb.program)
+        push!(instrument_pb[key], PitchBendEvent(pb.time, pb.pitch))
+    end
+
+    for cc in ns.control_changes
+        key = (cc.instrument, cc.program)
+        push!(instrument_cc[key], ControlChangeEvent(cc.time, cc.controller, cc.value))
+    end
+
+    # Obtain unique keys from each of those dicts
+    instrument_info = collect(union(keys.([instrument_notes, instrument_pb, instrument_cc])...))
+    sort!(instrument_info)
+
+    instruments = Vector{Instrument}()
+    for (ins_num, program) in instrument_info
+        ins = Instrument(program=program)
+        key = (ins_num, program)
+        append!(ins.notes, instrument_notes[key])
+        append!(ins.pitch_bends, instrument_pb[key])
+        append!(ins.control_changes, instrument_cc[key])
+        push!(instruments, ins)
+    end
+
+    instrument_tracks = getmiditracks(instruments)
+    append!(midifile.tracks, instrument_tracks)
+
+    midifile
 end
