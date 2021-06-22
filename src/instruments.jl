@@ -5,7 +5,7 @@ import MIDI: toabsolutetime!
 
 Base.@kwdef struct Instrument
     program::Int = 0
-    notes::Notes = Notes()
+    notes::Vector{Note} = []
     pitchbends::Vector{PitchBendEvent} = []
     controlchanges::Vector{ControlChangeEvent} = []
 end
@@ -64,7 +64,7 @@ function getinstruments(midi::MIDIFile, time=:relative)
         # Create a map of (channel, note) => (NoteOn position, velocity)
         note_map = Dict{Tuple{Int, Int}, Vector{Tuple{Int, Int}}}() # TODO: Use default dict instead
 
-        for (idx, event) in enumerate(track.events)
+        for event in track.events
             if event isa NoteOnEvent && event.velocity > 0
                 key = (channel(event), event.note)
                 if haskey(note_map, key)
@@ -173,7 +173,7 @@ function getmiditracks(instruments::Vector{Instrument})
         for note in ins.notes
             note.channel = ins_channel
         end
-        addnotes!(track, ins.notes)
+        addnotes!(track, Notes(ins.notes))
 
         push!(tracks, track)
     end

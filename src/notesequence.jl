@@ -109,25 +109,7 @@ function midi_to_notesequence(midi::MIDIFile)
     return ns
 end
 
-function notesequence_to_midi(ns::NoteSequence)
-    midifile = MIDIFile()
-    midifile.tpq = ns.tpq
-
-    metatrack = MIDITrack()
-
-    if isempty(ns.tempos)
-        push!(ns.tempos, Tempo(0, 120.0))
-    end
-
-    for tempo in ns.tempos
-        # Convert qpm back to microseconds
-        μs = Int(6e7 ÷ tempo.qpm)
-        push!(metatrack.events, SetTempoEvent(tempo.time, μs))
-    end
-    append!(metatrack.events, ns.timesignatures)
-    append!(metatrack.events, ns.keysignatures)
-    push!(midifile.tracks, metatrack)
-
+function getinstruments(ns::NoteSequence)
     # Create dicts that map (instrument_num, program) to their events
     instrument_notes = DefaultOrderedDict{Tuple{Int64, Int64}, Notes}(Notes)
     instrument_pb = DefaultOrderedDict{Tuple{Int64, Int64}, Vector{PitchBendEvent}}(Vector{PitchBendEvent})
@@ -135,7 +117,7 @@ function notesequence_to_midi(ns::NoteSequence)
 
     for note in ns.notes
         key = (note.instrument, note.program)
-        push!(instrument_notes[key], Note(note.pitch, note.velocity, note.start_time, note.end_time))
+        push!(instrument_notes[key], Note(note.pitch, note.velocity, note.start_time, note.end_time - note.start_time))
     end
 
     for pb in ns.pitchbends
@@ -162,13 +144,39 @@ function notesequence_to_midi(ns::NoteSequence)
         push!(instruments, ins)
     end
 
+    instruments
+end
+
+function notesequence_to_midi(ns::NoteSequence)
+    midifile = MIDIFile()
+    midifile.tpq = ns.tpq
+
+    metatrack = MIDITrack()
+
+    if isempty(ns.tempos)
+        push!(ns.tempos, Tempo(0, 120.0))
+    end
+    for tempo in ns.tempos
+        # Convert qpm back to microseconds
+        μs = Int(6e7 ÷ tempo.qpm)
+        push!(metatrack.events, SetTempoEvent(tempo.time, μs))
+    end
+
+    if isempty(ns.timesignatures)
+        push!(metatrack.events, TimeSignatureEvent(0, 4, 4, 24, 8))
+    else
+        append!(metatrack.events, ns.timesignatures)
+    end
+
+    append!(metatrack.events, ns.keysignatures)
+    push!(midifile.tracks, metatrack)
+
+    instruments = getinstruments(ns)
     instrument_tracks = getmiditracks(instruments)
     append!(midifile.tracks, instrument_tracks)
 
     midifile
 end
-
-const QUANTIZE_CUTOFF = 0.75
 
 function quantizedstep(ticks::Int, tpq::Int, qpm::Float64, sps::Int, cutoff=QUANTIZE_CUTOFF)
     seconds = ticks * ms_per_tick(tpq, qpm) / 1e3
