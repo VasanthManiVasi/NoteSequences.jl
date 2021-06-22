@@ -1,5 +1,9 @@
 export PerformanceEvent, Performance
-export encodeindex, decodeindex, set_length
+export getnotesequence, encodeindex, decodeindex, set_length
+
+const DEFAULT_MAX_SHIFT_STEPS = 100
+const DEFAULT_PROGRAM = 0
+
 
 """     PerformanceEvent <: Any
 Event-based performance representation from Oore et al.
@@ -54,6 +58,51 @@ function Base.show(io::IO, a::PerformanceEvent)
     print(io, s)
 end
 
+function getperfevents(
+    quantizedns::NoteSequence,
+    startstep::Int,
+    velocity_bins::Int,
+    max_shift_steps::Int,
+    instrument::Int=-1)
+
+    if !quantizedns.isquantized
+        throw(ArgumentError("The `NoteSequence` is not quantized."))
+    end
+
+    notes = [note for note in quantizedns.notes if instrument == -1 || note.intrument == instrument]
+    sort!(notes, by=note->(note.start_time, note.pitch))
+
+    onsets = [(note.start_time, idx, false) for (idx, note) in enumerate(notes)]
+    offets = [(note.end_time, idx, true) for (idx, note) in enumerate(notes)]
+    noteevents = sort(vcat(onsets, offsets))
+
+    currentstep = startstep
+    currentvelocitybin = 0
+    performanceevents = Vector{PerformanceEvent}()
+
+    for (step, idx, isoffset) in noteevents
+        if step > currentstep
+            while step > currentstep + max_shift_steps
+                push!(performanceevents, PerformanceEvent(TIME_SHIFT, max_shift_steps))
+                currentstep += max_shift_steps
+            end
+            push!(performanceevents, PerformanceEvent(TIME_SHIFT, step - currentstep))
+        end
+
+        if velocity_bins > 0
+            velocity = velocity2bin(notes[idx].velocity, velocity_bins)
+            if !isoffset && velocity != currentvelocitybin
+                currentvelocitybin = velocity
+                push!(performanceevents, PerformanceEvent(VELOCITY, currentvelocitybin))
+            end
+        end
+
+        push!(performanceevents, PerformanceEvent(ifelse(isoffset, NOTE_OFF, NOTE_ON), notes[idx].pitch))
+    end
+
+    performanceevents
+end
+
 """     Performance <: Any
 `Performance` is a vector of `PerformanceEvents` along with its context variables
 ## Fields
@@ -67,17 +116,21 @@ end
 """
 mutable struct Performance
     events::Vector{PerformanceEvent}
+    program::Int
+    startstep::Int
     velocity_bins::Int
     steps_per_second::Int
     num_classes::Int
     max_shift_steps::Int
     event_ranges::Vector{Tuple{Int, Int ,Int}} # Stores the range of each event type
 
-    function Performance(;
-            velocity_bins::Int = 32,
-            steps_per_second::Int = 100,
-            max_shift_steps::Int = 100,
-            events::Vector{PerformanceEvent}=Vector{PerformanceEvent}())
+    function Performance(
+            startstep::Int,
+            velocity_bins::Int,
+            steps_per_second::Int,
+            max_shift_steps::Int
+            ;events::Vector{PerformanceEvent}=Vector{PerformanceEvent}(),
+            program::Int = -1)
         event_ranges = [
             (NOTE_ON, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
             (NOTE_OFF, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
@@ -85,8 +138,33 @@ mutable struct Performance
         ]
         velocity_bins > 0 && push!(event_ranges, (VELOCITY, 1, velocity_bins))
         num_classes = sum(map(range -> range[3] - range[2] + 1, event_ranges))
-        new(events, velocity_bins, steps_per_second, num_classes, max_shift_steps, event_ranges)
+        new(events, program, startstep, velocity_bins, steps_per_second, num_classes, max_shift_steps, event_ranges)
     end
+end
+
+function Performance(quantizedns::NoteSequence;
+        startstep::Int = 0,
+        velocity_bins::Int = 0,
+        max_shift_steps::Int = DEFAULT_MAX_SHIFT_STEPS,
+        instrument::Int = -1)
+
+    if !quantizedns.isquantized
+        throw(ArgumentError("The `NoteSequence` is not quantized."))
+    end
+
+    steps_per_second = ns.sps
+    events = getperfevents(quantizedns, startstep, velocity_bins, max_shift_steps, instrument)
+
+    Performance(startstep, velocity_bins, steps_per_second, max_shift_steps, events=events)
+end
+
+function Performance(steps_per_second::Int;
+        startstep::Int = 0,
+        velocity_bins::Int = 0,
+        max_shift_steps::Int = DEFAULT_MAX_SHIFT_STEPS,
+        program::Int = -1)
+
+    Performance(startstep, velocity_bins, steps_per_second, max_shift_steps, program=program)
 end
 
 function Base.getproperty(performance::Performance, sym::Symbol)
@@ -132,6 +210,81 @@ function Base.copy(p::Performance)
         p.num_classes,
         p.max_shift_steps,
         p.event_ranges)
+end
+
+function tosequence(performance::Performance, ticks_per_step::Float64, velocity::Int, instrument::Int, program::Int)
+    sequence = NoteSequence(DEFAULT_TPQ, false)
+    seqstart_time = performance.startstep * ticks_per_step
+
+    if program == -1
+        program = ifelse(performance.program != -1, performance.program, DEFAULT_PROGRAM)
+    end
+
+    # Map the pitch of a note to a list of start steps and velocities
+    # (since may be active multiple times)
+    pitchmap = DefaultDict{Int, Vector{Tuple{Int, Int}}}(Vector{Tuple{Int, Int}})
+    step = 0
+
+    for event in performance
+        if event.event_type == NOTE_ON
+            push!(pitchmap[event.event_value], (step, velocity))
+        elseif event.event_type == NOTE_OFF
+            if event.event_value in keys(pitchmap)
+                pitchstartstep, pitchvelocity = popfirst!(pitchmap[event.event_value])
+
+                if isempty(pitchmap[event.event_value])
+                    delete!(pitchmap, event.event_value)
+                end
+
+                # If start step and end step are the same, ignore
+                if step == pitchstartstep
+                    continue
+                end
+
+                start_time = round(ticks_per_step * pitchstartstep) + seqstart_time
+                end_time = round(ticks_per_step * step) + seqstart_time
+                note = SeqNote(event.event_value, pitchvelocity, start_time, end_time, program, instrument)
+                push!(sequence.notes, note)
+                if note.end_time > sequence.total_time
+                    sequence.total_time = note.end_time
+                end
+            end
+        elseif event.event_type == TIME_SHIFT
+            step += event.event_value
+        elseif event.event_type == VELOCITY
+            if event.event_value != velocity
+                velocity = bin2velocity(event.event_value, performance.velocity_bins)
+            end
+        else
+            throw(error("Unkown event type $(event.event_type)"))
+        end
+    end
+
+    # End all the notes that weren't ended
+    for pitch in keys(pitchmap)
+        for (pitchstartstep, pitchvelocity) in pitchmap[pitch]
+            if step == pitchstartstep
+                continue
+            end
+
+            start_time = round(ticks_per_step * pitchstartstep) + seqstart_time
+            end_time = round(ticks_per_step * step) + seqstart_time
+            # End after 5 seconds
+            # end_time = start_time + round(ticks_per_step * 5 * performance.steps_per_second) + seqstart_time
+            note = SeqNote(pitch, pitchvelocity, start_time, end_time, program, instrument)
+            push!(sequence.notes, note)
+            if note.end_time > sequence.total_time
+                sequence.total_time = note.end_time
+            end
+        end
+    end
+
+    sequence
+end
+
+function getnotesequence(performance::Performance, velocity::Int = 100, instrument::Int = 1, program::Int = -1)
+    ticks_per_step = second_to_tick(1, DEFAULT_QPM, DEFAULT_TPQ) / performance.steps_per_second
+    tosequence(performance, ticks_per_step, velocity, instrument, program)
 end
 
 """     truncate(performance::Performance, numevents)
@@ -219,6 +372,8 @@ Returns the size of a bin given the total number of bins.
 """
 binsize(velocity_bins) = Int(ceil(
         (MAX_MIDI_VELOCITY - MIN_MIDI_VELOCITY + 1) / velocity_bins))
+
+velocity2bin(velocity, velocity_bins) = ((velocity - MIN_MIDI_VELOCITY) ÷ binsize(velocity_bins)) + 1
 
 """     bin2velocity(bin, velocity_bins)
 Returns a velocity value given a bin and the total number of velocity bins.
