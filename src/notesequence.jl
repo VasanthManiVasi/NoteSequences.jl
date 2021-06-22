@@ -149,6 +149,7 @@ end
 
 function notesequence_to_midi(ns::NoteSequence)
     midifile = MIDIFile()
+    midifile.format = 1
     midifile.tpq = ns.tpq
 
     metatrack = MIDITrack()

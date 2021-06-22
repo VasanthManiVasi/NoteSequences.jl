@@ -269,8 +269,8 @@ function tosequence(performance::Performance, ticks_per_step::Float64, velocity:
 
             start_time = round(ticks_per_step * pitchstartstep) + seqstart_time
             end_time = round(ticks_per_step * step) + seqstart_time
-            # End after 5 seconds
-            # end_time = start_time + round(ticks_per_step * 5 * performance.steps_per_second) + seqstart_time
+            # End after 5 seconds?
+            # end_time = start_time + round(ticks_per_step * 5 * performance.steps_per_second)
             note = SeqNote(pitch, pitchvelocity, start_time, end_time, program, instrument)
             push!(sequence.notes, note)
             if note.end_time > sequence.total_time
