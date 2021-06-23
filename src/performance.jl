@@ -104,14 +104,18 @@ function getperfevents(
 end
 
 """     Performance <: Any
-`Performance` is a vector of `PerformanceEvents` along with its context variables
+`Performance` is a vector of `PerformanceEvents` along with its context variables.
+It stores a polyphonic music sequence as a stream of `PerformanceEvent`s.
 ## Fields
-* `events::Vector{PerformanceEvent}` : The actual performance vector.
-* `velocity_bins::Int`    : Number of bins for velocity values.
+* `events::Vector{PerformanceEvent}` : The stream of `PerformanceEvent`s.
+* `program::Int`          : Program to be used for this performance.
+   If the program is -1, the default program is assigned when converting the `Performance` back to a `NoteSequence`.
+* `startstep::Int`        : The beginning time step for this performance.
+* `velocity_bins::Int`    : Number of bins for the velocity values.
 * `steps_per_second::Int` : Number of steps per second for quantization.
 * `num_classes::Int`      : Total number of event classes (`NOTE_ON` events + `NOTE_OFF` events +
                             `TIME_SHIFT` events + `VELOCITY` events)
-* `max_shift_steps::Int`  : Maximum number of shift steps in a `TIME_SHIFT`.
+* `max_shift_steps::Int`  : Maximum number of steps shifted by a `TIME_SHIFT event`.
 * `event_ranges::Vector{Tuple{Int, Int, Int}}` : Stores the min and max values of each event type.
 """
 mutable struct Performance
