@@ -3,6 +3,11 @@ export NoteSequence, midi_to_notesequence, notesequence_to_midi
 using MIDI
 using MIDI: TimeSignatureEvent, KeySignatureEvent, SetTempoEvent
 
+"""
+    SeqNote <: Any
+
+Structure to hold the data in a [`MIDI.Note`](@ref) along with it's `program` and `instrument`.
+"""
 mutable struct SeqNote
     pitch::Int
     velocity::Int
@@ -12,30 +17,45 @@ mutable struct SeqNote
     instrument::Int
 end
 
+"""
+    Tempo <: Any
+
+Structure to hold the `qpm` from a [`MIDI.SetTempoEvent`](@ref).
+"""
 struct Tempo
     time::Int
     qpm::Float64
 end
 
+"""
+    PitchBend <: Any
+
+Structure to hold the data in a [`MIDI.PitchBendEvent`](@ref) along with it's `program` and `instrument`.
+"""
 struct PitchBend
     time::Int
     bend::Int
-    instrument::Int
     program::Int
+    instrument::Int
 end
 
+"""
+    ControlChange <: Any
+
+Structure to hold the data in a [`MIDI.ControlChangeEvent`](@ref) along with it's `program` and `instrument`.
+"""
 mutable struct ControlChange
     time::Int
     controller::Int
     value::Int
-    instrument::Int
     program::Int
+    instrument::Int
 end
 
 Base.@kwdef mutable struct NoteSequence
     tpq::Int = 220
-    isquantized::Bool
-    sps::Int
+    isquantized::Bool = false
+    sps::Int = -1
     total_time::Int = 0
     timesignatures::Vector{TimeSignatureEvent} = []
     keysignatures::Vector{KeySignatureEvent} = []
@@ -45,10 +65,15 @@ Base.@kwdef mutable struct NoteSequence
     controlchanges::Vector{ControlChange} = []
 end
 
-function NoteSequence(tpq::Int = 220, isquantized::Bool = false, sps::Int = -1)
-    if isquantized && sps <= 0
-        throw(ArgumentError("`sps` must be greater than zero for a quantized sequence"))
+function NoteSequence(tpq::Int; isquantized::Bool = false, sps::Int = -1)
+    if !isquantized && sps != -1
+        throw(ArgumentError("`sps` must be not be given for an unquantized note sequence"))
     end
+
+    if isquantized && sps <= 0
+        throw(ArgumentError("`sps` must be greater than zero for a quantized note sequence"))
+    end
+
     NoteSequence(tpq=tpq, isquantized=isquantized, sps=sps)
 end
 
@@ -66,8 +91,13 @@ function Base.show(io::IO, ns::NoteSequence)
     print(io, "  $N Notes, $P PitchBends, $C ControlChanges\n")
 end
 
+"""
+    midi_to_notesequence(midi::MIDIFile)
+
+Return [`NoteSequence`](@ref) from a `MIDIFile`.
+"""
 function midi_to_notesequence(midi::MIDIFile)
-    ns = NoteSequence(Int(midi.tpq), false)
+    ns = NoteSequence(Int(midi.tpq), isquantized=false)
 
     # Load meta info
     # No need to convert midifile to absolute time since tempochanges returns absolute time automatically
@@ -109,6 +139,11 @@ function midi_to_notesequence(midi::MIDIFile)
     return ns
 end
 
+"""
+    getinstruments(ns::NoteSequence)
+
+Extract [`Instrument`](@ref)s from the [`NoteSequence`](@ref).
+"""
 function getinstruments(ns::NoteSequence)
     # Create dicts that map (instrument_num, program) to their events
     instrument_notes = DefaultOrderedDict{Tuple{Int64, Int64}, Notes}(Notes)
@@ -147,28 +182,28 @@ function getinstruments(ns::NoteSequence)
     instruments
 end
 
-function notesequence_to_midi(ns::NoteSequence)
-    midifile = MIDIFile()
-    midifile.format = 1
-    midifile.tpq = ns.tpq
+"""
+    notesequence_to_midi(ns::NoteSequence)
 
+Return a MIDIFile from a [`NoteSequence`](@ref)
+"""
+function notesequence_to_midi(ns::NoteSequence)
+    midifile = MIDIFile(1, ns.tpq, MIDITrack[])
     metatrack = MIDITrack()
 
-    if isempty(ns.tempos)
-        push!(ns.tempos, Tempo(0, 120.0))
-    end
+    isempty(ns.tempos) && push!(ns.tempos, Tempo(0, 120.0))
     for tempo in ns.tempos
-        # Convert qpm back to microseconds
+        # Convert qpm to microseconds
         μs = Int(6e7 ÷ tempo.qpm)
         push!(metatrack.events, SetTempoEvent(tempo.time, μs))
     end
 
+    # Add default time signature if time signatures are missing
     if isempty(ns.timesignatures)
-        push!(metatrack.events, TimeSignatureEvent(0, 4, 4, 24, 8))
-    else
-        append!(metatrack.events, ns.timesignatures)
+        push!(ns.timesignatures, TimeSignatureEvent(0, 4, 4, 24, 8))
     end
 
+    append!(metatrack.events, ns.timesignatures)
     append!(metatrack.events, ns.keysignatures)
     push!(midifile.tracks, metatrack)
 
@@ -179,12 +214,32 @@ function notesequence_to_midi(ns::NoteSequence)
     midifile
 end
 
+"""
+    quantizedstep(ticks::Int, tpq::Int, qpm::Float64, sps::Int, cutoff=QUANTIZE_CUTOFF)
+
+Quantizes `ticks` to the nearest steps, given the steps per second (`sps`).
+The ticks are converted to seconds using the ticks per quarter (`tpq`)
+and quarter notes per minute (`qpm`).
+The seconds are then further converted to steps before being quantized.
+
+Notes above the cutoff are rounded up to the closest step
+and notes below the cutoff are rounded down to the closest step.
+For example,
+if 1.0 <= event <= 1.75, it will be quantized to step 1
+if 1.75 < event <= 2.0, it will be quantized to step 2
+"""
 function quantizedstep(ticks::Int, tpq::Int, qpm::Float64, sps::Int, cutoff=QUANTIZE_CUTOFF)
     seconds = ticks * ms_per_tick(tpq, qpm) / 1e3
     steps = seconds * sps
-    quantized_step = floor(Int, steps + (1 - cutoff))
+
+    floor(Int, steps + (1 - cutoff))
 end
 
+"""
+    absolutequantize!(ns::NoteSequence, sps::Int)
+
+Quantize a NoteSequence to absolute time based on the given steps per second (`sps`).
+"""
 function absolutequantize!(ns::NoteSequence, sps::Int)
     ns.isquantized = true
     ns.sps = sps
