@@ -3,6 +3,17 @@ export getinstruments, getmiditracks
 using MIDI: NoteOnEvent, NoteOffEvent, ProgramChangeEvent, ControlChangeEvent, PitchBendEvent, channelnumber
 import MIDI: toabsolutetime!
 
+"""
+    Instrument <: Any
+
+Data structure representing a musical instrument.
+
+## Fields:
+* `program::Int`: MIDI program of the instrument.
+* `notes::Vector{Note}`: Musical notes for the instrument.
+* `pitchbends::Vector{PitchBendEvent}`: Pitch bend events for the instrument.
+* `controlchanges::Vector{ControlChangeEvent}`: Control change events for the instrument.
+"""
 Base.@kwdef struct Instrument
     program::Int = 0
     notes::Vector{Note} = []
@@ -18,33 +29,20 @@ function Base.show(io::IO, instrument::Instrument)
     print(io, "Instrument(program = $pn) with $N Notes, $C ControlChange, $P PitchBend")
 end
 
-function toabsolutetime!(midi::MIDIFile)
-    for track in midi.tracks
-        toabsolutetime!(track)
-    end
-    midi
-end
+"""
+    getinstruments(midi::MIDIFile, time::Symbol=:relative)
 
-function torelativetime!(track::MIDITrack)
-    time = 0
-    for event in track.events
-        event.dT -= time
-        time += event.dT
-    end
-end
+Extract [`Instrument`](@ref)s from each [`MIDITrack`](@ref) of a [`MIDIFile`](@ref).
+The argument `time` informs whether the `MIDIFile` is in `:absolute` or `:relative` time.
+Internally, `getinstruments` converts relative time `MIDIFile`s to absolute time
+for extracting the instruments.
 
-function torelativetime!(midi::MIDIFile)
-    for track in midi.tracks
-        torelativetime!(track)
-    end
-    midi
-end
+If there are notes in a track that do not have a [`MIDI.ProgramChangeEvent`](@ref) 
+preceding them, an `Instrument` with a default program number of zero is created.
 
-function channel(event::MIDIEvent)
-    Int(channelnumber(event))
-end
-
-function getinstruments(midi::MIDIFile, time=:relative)
+See also: [`MIDI.getnotes`](@ref)
+"""
+function getinstruments(midi::MIDIFile, time::Symbol=:relative)
     # TODO: Work on a copy of the midi instead of modifying the midi file
     if time === :relative
         toabsolutetime!(midi)
@@ -146,10 +144,17 @@ function getinstruments(midi::MIDIFile, time=:relative)
     return instruments
 end
 
+
+"""
+    getmiditracks(instruments::Vector{Instrument})
+
+Return [`MIDITrack`](@ref)s from the [`Instrument`](@ref)s.
+"""
 function getmiditracks(instruments::Vector{Instrument})
     tracks = MIDITrack[]
     for (ins_num, ins) in enumerate(instruments)
         track = MIDITrack()
+        # Get the channel number for the current instrument
         ins_channel = (ins_num - 1) % 16
 
         # Add a program change event at the beginning
@@ -180,3 +185,50 @@ function getmiditracks(instruments::Vector{Instrument})
 
     tracks
 end
+
+# TODO: Send a PR with the below 3 functions to MIDI.jl
+
+"""
+    toabsolutetime!(midi::MIDIFile)
+
+Convert a midi file from relative time to absolute time.
+
+See also: [`MIDI.toabsolutetime!`](@ref), [`torelativetime!`](@ref)
+"""
+function toabsolutetime!(midi::MIDIFile)
+    for track in midi.tracks
+        toabsolutetime!(track)
+    end
+    midi
+end
+
+"""
+    torelativetime!(midi::MIDITrack)
+
+Convert a midi track from absolute time to relative time.
+
+See also: [`MIDI.toabsolutetime!`](@ref)
+"""
+function torelativetime!(track::MIDITrack)
+    time = 0
+    for event in track.events
+        event.dT -= time
+        time += event.dT
+    end
+end
+
+"""
+    torelativetime!(midi::MIDIFile)
+
+Convert a midi file from absolute time to relative time.
+
+See also: [`MIDI.toabsolutetime!`](@ref)
+"""
+function torelativetime!(midi::MIDIFile)
+    for track in midi.tracks
+        torelativetime!(track)
+    end
+    midi
+end
+
+channel(event::MIDIEvent) = Int(channelnumber(event))

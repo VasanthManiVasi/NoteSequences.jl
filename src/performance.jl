@@ -5,13 +5,16 @@ const DEFAULT_MAX_SHIFT_STEPS = 100
 const DEFAULT_PROGRAM = 0
 
 
-"""     PerformanceEvent <: Any
-Event-based performance representation from Oore et al.
-In the performance representation, midi data is encoded as a 388-length one hot vector.
+"""
+    PerformanceEvent <: Any
+
+Event-based performance representation of music data from Oore et al.
+In this representation, midi data is encoded as a 388-length one hot vector.
 It corresponds to NOTE_ON, NOTE_OFF events for each of the 128 midi pitches,
 32 bins for the 128 midi velocities and 100 TIME_SHIFT events
 (it can represent a time shift from 10 ms up to 1 second).
 `PerformanceEvent` is the base representation.
+
 ## Fields
 * `event_type::Int`  :  Type of the event. One of {NOTE_ON, NOTE_OFF, TIME_SHIFT, VELOCITY}.
 * `event_value::Int` :  Value of the event corresponding to its type.
@@ -58,65 +61,19 @@ function Base.show(io::IO, a::PerformanceEvent)
     print(io, s)
 end
 
-function getperfevents(
-    quantizedns::NoteSequence,
-    startstep::Int,
-    velocity_bins::Int,
-    max_shift_steps::Int,
-    instrument::Int=-1)
-
-    if !quantizedns.isquantized
-        throw(ArgumentError("The `NoteSequence` is not quantized."))
-    end
-
-    notes = [note for note in quantizedns.notes if instrument == -1 || note.intrument == instrument]
-    sort!(notes, by=note->(note.start_time, note.pitch))
-
-    onsets = [(note.start_time, idx, false) for (idx, note) in enumerate(notes)]
-    offets = [(note.end_time, idx, true) for (idx, note) in enumerate(notes)]
-    noteevents = sort(vcat(onsets, offsets))
-
-    currentstep = startstep
-    currentvelocitybin = 0
-    performanceevents = Vector{PerformanceEvent}()
-
-    for (step, idx, isoffset) in noteevents
-        if step > currentstep
-            while step > currentstep + max_shift_steps
-                push!(performanceevents, PerformanceEvent(TIME_SHIFT, max_shift_steps))
-                currentstep += max_shift_steps
-            end
-            push!(performanceevents, PerformanceEvent(TIME_SHIFT, step - currentstep))
-        end
-
-        if velocity_bins > 0
-            velocity = velocity2bin(notes[idx].velocity, velocity_bins)
-            if !isoffset && velocity != currentvelocitybin
-                currentvelocitybin = velocity
-                push!(performanceevents, PerformanceEvent(VELOCITY, currentvelocitybin))
-            end
-        end
-
-        push!(performanceevents, PerformanceEvent(ifelse(isoffset, NOTE_OFF, NOTE_ON), notes[idx].pitch))
-    end
-
-    performanceevents
-end
-
 """     Performance <: Any
-`Performance` is a vector of `PerformanceEvents` along with its context variables.
-It stores a polyphonic music sequence as a stream of `PerformanceEvent`s.
+`Performance` holds the vector of `PerformanceEvent`s along with its parameters.
+
 ## Fields
-* `events::Vector{PerformanceEvent}` : The stream of `PerformanceEvent`s.
-* `program::Int`          : Program to be used for this performance.
-   If the program is -1, the default program is assigned when converting the `Performance` back to a `NoteSequence`.
-* `startstep::Int`        : The beginning time step for this performance.
-* `velocity_bins::Int`    : Number of bins for the velocity values.
-* `steps_per_second::Int` : Number of steps per second for quantization.
-* `num_classes::Int`      : Total number of event classes (`NOTE_ON` events + `NOTE_OFF` events +
-                            `TIME_SHIFT` events + `VELOCITY` events)
-* `max_shift_steps::Int`  : Maximum number of steps shifted by a `TIME_SHIFT event`.
-* `event_ranges::Vector{Tuple{Int, Int, Int}}` : Stores the min and max values of each event type.
+* `events::Vector{PerformanceEvent}`: The performance in a vector of `PerformanceEvent`s.
+* `program::Int`: MIDI program number for this `Performance`
+* `startstep::Int`: The start step of the performance relative to the source sequence.
+* `velocity_bins::Int`: Number of bins for velocity values.
+* `steps_per_second::Int`: Number of steps per second for quantization.
+* `num_classes::Int`: Total number of event classes (`NOTE_ON` events + `NOTE_OFF` events +
+                        `TIME_SHIFT` events + `VELOCITY` events)
+* `max_shift_steps::Int`: Maximum number of steps in a `TIME_SHIFT` event.
+* `event_ranges::Vector{Tuple{Int, Int, Int}}`: Stores the min and max values of each event type.
 """
 mutable struct Performance
     events::Vector{PerformanceEvent}
@@ -128,13 +85,13 @@ mutable struct Performance
     max_shift_steps::Int
     event_ranges::Vector{Tuple{Int, Int ,Int}} # Stores the range of each event type
 
-    function Performance(
-            startstep::Int,
-            velocity_bins::Int,
-            steps_per_second::Int,
-            max_shift_steps::Int
-            ;events::Vector{PerformanceEvent}=Vector{PerformanceEvent}(),
-            program::Int = -1)
+    function Performance(startstep::Int,
+                         velocity_bins::Int,
+                         steps_per_second::Int,
+                         max_shift_steps::Int;
+                         events::Vector{PerformanceEvent}=Vector{PerformanceEvent}(),
+                         program::Int = -1)
+
         event_ranges = [
             (NOTE_ON, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
             (NOTE_OFF, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
@@ -147,26 +104,26 @@ mutable struct Performance
 end
 
 function Performance(quantizedns::NoteSequence;
-        startstep::Int = 0,
-        velocity_bins::Int = 0,
-        max_shift_steps::Int = DEFAULT_MAX_SHIFT_STEPS,
-        instrument::Int = -1)
+                     startstep::Int = 0,
+                     velocity_bins::Int = 0,
+                     max_shift_steps::Int = DEFAULT_MAX_SHIFT_STEPS,
+                     instrument::Int = -1)
 
     if !quantizedns.isquantized
         throw(ArgumentError("The `NoteSequence` is not quantized."))
     end
 
-    steps_per_second = ns.sps
+    steps_per_second = quantizedns.sps
     events = getperfevents(quantizedns, startstep, velocity_bins, max_shift_steps, instrument)
 
     Performance(startstep, velocity_bins, steps_per_second, max_shift_steps, events=events)
 end
 
 function Performance(steps_per_second::Int;
-        startstep::Int = 0,
-        velocity_bins::Int = 0,
-        max_shift_steps::Int = DEFAULT_MAX_SHIFT_STEPS,
-        program::Int = -1)
+                     startstep::Int = 0,
+                     velocity_bins::Int = 0,
+                     max_shift_steps::Int = DEFAULT_MAX_SHIFT_STEPS,
+                     program::Int = -1)
 
     Performance(startstep, velocity_bins, steps_per_second, max_shift_steps, program=program)
 end
@@ -216,7 +173,97 @@ function Base.copy(p::Performance)
         p.event_ranges)
 end
 
-function tosequence(performance::Performance, ticks_per_step::Float64, velocity::Int, instrument::Int, program::Int)
+"""
+    getperfevents(quantizedns::NoteSequence, startstep::Int, velocity_bins::Int,
+                  max_shift_steps::Int, instrument::Int=-1)
+
+Extract performance events from a quantized [`NoteSequence`](@ref).
+
+The extraction starts from `startstep`. The number of velocity bins to use
+is given by `velocity_bins`. If it's 0, velocity events will not be included.
+`max_shift_steps` is the maximum number of steps for a single `TIME_SHIFT` event.
+
+If `instrument` is -1, performance events will be extracted for all instruments in the `NoteSequence`
+Otherwise, performance events will be extracted only for the given instrument.
+"""
+function getperfevents(quantizedns::NoteSequence,
+                       startstep::Int,
+                       velocity_bins::Int,
+                       max_shift_steps::Int,
+                       instrument::Int = -1)
+
+    if !quantizedns.isquantized
+        throw(ArgumentError("The `NoteSequence` is not quantized."))
+    end
+
+    notes = [note for note in quantizedns.notes
+             if note.start_time >= startstep &&
+             (instrument == -1 || note.instrument == instrument)]
+
+    _extractperfevents(notes, startstep, velocity_bins, max_shift_steps)
+end
+
+function _extractperfevents(notes::Vector{SeqNote},
+                            startstep::Int,
+                            velocity_bins::Int,
+                            max_shift_steps::Int)
+
+    sort!(notes, by=note->(note.start_time, note.pitch))
+
+    onsets = [(note.start_time, idx, false) for (idx, note) in enumerate(notes)]
+    offsets = [(note.end_time, idx, true) for (idx, note) in enumerate(notes)]
+    noteevents = sort(vcat(onsets, offsets))
+
+    currentstep = startstep
+    currentvelocitybin = 0
+    perfevents = Vector{PerformanceEvent}()
+
+    for (step, idx, isoffset) in noteevents
+        if step > currentstep
+            while step > currentstep + max_shift_steps
+                push!(perfevents, PerformanceEvent(TIME_SHIFT, max_shift_steps))
+                currentstep += max_shift_steps
+            end
+            push!(perfevents, PerformanceEvent(TIME_SHIFT, step - currentstep))
+        end
+
+        if velocity_bins > 0
+            velocity = velocity2bin(notes[idx].velocity, velocity_bins)
+            if !isoffset && velocity != currentvelocitybin
+                currentvelocitybin = velocity
+                push!(perfevents, PerformanceEvent(VELOCITY, currentvelocitybin))
+            end
+        end
+
+        push!(perfevents, PerformanceEvent(ifelse(isoffset, NOTE_OFF, NOTE_ON), notes[idx].pitch))
+    end
+
+    perfevents
+end
+
+"""
+    getnotesequence(performance::Performance, velocity::Int=100, instrument::Int=1, program::Int=-1)
+
+Return a `NoteSequence` from the `Performance`.
+
+All of the notes in the `NoteSequence` will have the same `velocity`, `program` number
+and `instrument` number.
+"""
+function getnotesequence(performance::Performance,
+                         velocity::Int = 100,
+                         instrument::Int = 1,
+                         program::Int = -1)
+
+    ticks_per_step = second_to_tick(1, DEFAULT_QPM, DEFAULT_TPQ) / performance.steps_per_second
+    tosequence(performance, ticks_per_step, velocity, instrument, program)
+end
+
+function tosequence(performance::Performance,
+                    ticks_per_step::Float64,
+                    velocity::Int,
+                    instrument::Int,
+                    program::Int)
+
     sequence = NoteSequence(DEFAULT_TPQ, false)
     seqstart_time = performance.startstep * ticks_per_step
 
@@ -286,23 +333,21 @@ function tosequence(performance::Performance, ticks_per_step::Float64, velocity:
     sequence
 end
 
-function getnotesequence(performance::Performance, velocity::Int = 100, instrument::Int = 1, program::Int = -1)
-    ticks_per_step = second_to_tick(1, DEFAULT_QPM, DEFAULT_TPQ) / performance.steps_per_second
-    tosequence(performance, ticks_per_step, velocity, instrument, program)
-end
+"""
+    truncate(performance::Performance, numevents::Int)
 
-"""     truncate(performance::Performance, numevents)
 Truncate the performance to exactly `numevents` events.
 """
-function Base.truncate(performance::Performance, numevents)
+function Base.truncate(performance::Performance, numevents::Int)
     performance.events = performance.events[1:numevents]
 end
 
-function append_steps(performance::Performance, numsteps)
-    max_shift_steps = performance.max_shift_steps # For readability
+function append_steps(performance::Performance, numsteps::Int)
+    max_shift_steps = performance.max_shift_steps
     if (!isempty(performance) &&
         performance[end].event_type == TIME_SHIFT &&
         performance[end].event_value < max_shift_steps)
+
         steps = min(numsteps, max_shift_steps - performance[end].event_value)
         performance[end] = PerformanceEvent(TIME_SHIFT, performance[end].event_value + steps)
         numsteps -= steps
@@ -318,7 +363,7 @@ function append_steps(performance::Performance, numsteps)
     end
 end
 
-function trim_steps(performance::Performance, numsteps)
+function trim_steps(performance::Performance, numsteps::Int)
     trimmed = 0
     while !isempty(performance) && trimmed < numsteps
         if performance[end].event_type == TIME_SHIFT
@@ -335,7 +380,15 @@ function trim_steps(performance::Performance, numsteps)
     end
 end
 
-function set_length(performance, steps)
+"""
+    set_length(performance::Performance, steps::Int)
+
+Sets the total length of the `Performance` based on the length given by `steps`.
+
+If the length of the performance is greater than the given steps, it is trimmed.
+Otherwise, the performance is padded with `TIME_SHIFT`s.
+"""
+function set_length(performance::Performance, steps::Int)
     if performance.numsteps < steps
         append_steps(performance, steps - performance.numsteps)
     elseif performance.numsteps > steps
