@@ -319,3 +319,39 @@ function temporalstretch!(ns::NoteSequence, factor::Real)
 
     ns
 end
+
+"""
+    transpose(ns::NoteSequence, amount::Int, minpitch::Int, maxpitch::Int)
+
+Transpose the NoteSequence by `amount` half-steps
+and return the transposed sequence along with the number of deleted notes.
+The allowed range of values for a pitch is defined by `minpitch` and `maxpitch`.
+If the transposed pitch goes out of range, the note is removed.
+"""
+function transpose(ns::NoteSequence, amount::Int, minpitch::Int, maxpitch::Int)
+    new_notes = Vector{SeqNote}()
+    num_deleted = 0
+    end_time = 0
+
+    for note in ns.notes
+        note.pitch += amount
+        if minpitch <= note.pitch <= maxpitch
+            # Keep track of note ending times
+            end_time = max(end_time, note.end_time)
+            push!(new_notes, note)
+        else
+            # Don't include this pitch since it's out of range
+            num_deleted += 1
+        end
+    end
+
+    if num_deleted > 0
+        ns.notes = new_notes
+        # Update total time, since some notes were removed
+        ns.total_time = end_time
+    end
+
+    # TODO: transpose key signatures
+
+    ns, num_deleted
+end
