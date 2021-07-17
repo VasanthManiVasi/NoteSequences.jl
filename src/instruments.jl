@@ -43,7 +43,8 @@ preceding them, an `Instrument` with a default program number of zero is created
 See also: [`MIDI.getnotes`](@ref)
 """
 function getinstruments(midi::MIDIFile, time::Symbol=:relative)
-    # TODO: Work on a copy of the midi instead of modifying the midi file
+    midi = deepcopy(midi)
+
     if time === :relative
         toabsolutetime!(midi)
     elseif time != :absolute
@@ -130,11 +131,6 @@ function getinstruments(midi::MIDIFile, time::Symbol=:relative)
                 end
             end
         end
-    end
-    
-    if time === :relative
-        # Convert midi back to relative time
-        torelativetime!(midi)
     end
 
     instruments = Vector{Instrument}()
