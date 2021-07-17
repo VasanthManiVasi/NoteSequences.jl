@@ -2,6 +2,7 @@ export NoteSequence, midi_to_notesequence, notesequence_to_midi
 
 using MIDI
 using MIDI: TimeSignatureEvent, KeySignatureEvent, SetTempoEvent
+using Base.Iterators
 
 """
     SeqNote <: Any
@@ -22,7 +23,7 @@ end
 
 Structure to hold the `qpm` from a [`MIDI.SetTempoEvent`](@ref).
 """
-struct Tempo
+mutable struct Tempo
     time::Int
     qpm::Float64
 end
@@ -32,7 +33,7 @@ end
 
 Structure to hold the data in a [`MIDI.PitchBendEvent`](@ref) along with it's `program` and `instrument`.
 """
-struct PitchBend
+mutable struct PitchBend
     time::Int
     bend::Int
     program::Int
@@ -118,8 +119,12 @@ function midi_to_notesequence(midi::MIDIFile)
     instruments = getinstruments(midi, :absolute)
     for (ins_num, ins) in enumerate(instruments)
         for note in ins.notes
-            seqnote = SeqNote(note.pitch, note.velocity, note.position, note.position + note.duration, ins.program, ins_num)
+            seqnote = SeqNote(note.pitch, note.velocity, note.position,
+                              note.position + note.duration,
+                              ins.program, ins_num)
+
             push!(ns.notes, seqnote)
+
             if ns.total_time == -1 || seqnote.end_time > ns.total_time
                 ns.total_time = seqnote.end_time
             end
@@ -241,8 +246,7 @@ end
 Quantize a NoteSequence to absolute time based on the given steps per second (`sps`).
 """
 function absolutequantize!(ns::NoteSequence, sps::Int)
-    ns.isquantized = true
-    ns.sps = sps
+    ns.isquantized && throw(error("The NoteSequence is already quantized"))
 
     for tempo in ns.tempos[2:end]
         if tempo.qpm != ns.tempos[1].qpm
@@ -271,6 +275,46 @@ function absolutequantize!(ns::NoteSequence, sps::Int)
         if cc.time < 0
             throw(error("Control change event has negative time"))
         end
+    end
+
+    ns.isquantized = true
+    ns.sps = sps
+
+    ns
+end
+
+"""
+    temporalstretch!(ns::NoteSequence, factor::Real)
+
+Apply a constant temporal stretch to a NoteSequence.
+`factor` is the amount of stretch to be applied.
+If the `factor` is greater than 1.0, it increases the length, which makes the sequence slower.
+If the `factor` is lower than 1.0, it decreases the length, which makes the sequence faster.
+"""
+function temporalstretch!(ns::NoteSequence, factor::Real)
+    ns.isquantized && throw(error("Can only stretch unquantized NoteSequence"))
+
+    factor == 1.0 && return ns
+
+    # Stretch notes and total time of the NoteSequence
+    for note in ns.notes
+        note.start_time *= factor
+        note.end_time *= factor
+    end
+    ns.total_time *= factor
+
+    # Stretch tempos
+    for tempo in ns.tempos
+        tempo.qpm /= factor
+    end
+
+    # Stretch event times for all other events
+    for event in flatten((ns.timesignatures, ns.keysignatures))
+        event.dT *= factor
+    end
+
+    for event in flatten((ns.tempos, ns.pitchbends, ns.controlchanges))
+        event.time *= factor
     end
 
     ns
