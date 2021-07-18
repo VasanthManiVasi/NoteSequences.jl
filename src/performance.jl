@@ -264,7 +264,7 @@ function tosequence(performance::Performance,
                     instrument::Int,
                     program::Int)
 
-    sequence = NoteSequence(DEFAULT_TPQ, false)
+    sequence = NoteSequence(DEFAULT_TPQ, isquantized=false)
     seqstart_time = performance.startstep * ticks_per_step
 
     if program == -1

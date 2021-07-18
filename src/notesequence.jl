@@ -14,8 +14,8 @@ mutable struct SeqNote
     velocity::Int
     start_time::Int
     end_time::Int
-    program::Int
     instrument::Int
+    program::Int
 end
 
 """
@@ -36,8 +36,8 @@ Structure to hold the data in a [`MIDI.PitchBendEvent`](@ref) along with it's `p
 mutable struct PitchBend
     time::Int
     bend::Int
-    program::Int
     instrument::Int
+    program::Int
 end
 
 """
@@ -49,8 +49,8 @@ mutable struct ControlChange
     time::Int
     controller::Int
     value::Int
-    program::Int
     instrument::Int
+    program::Int
 end
 
 Base.@kwdef mutable struct NoteSequence
@@ -98,6 +98,7 @@ end
 Return [`NoteSequence`](@ref) from a `MIDIFile`.
 """
 function midi_to_notesequence(midi::MIDIFile)
+    midi = deepcopy(midi)
     ns = NoteSequence(Int(midi.tpq), isquantized=false)
 
     # Load meta info
@@ -121,11 +122,11 @@ function midi_to_notesequence(midi::MIDIFile)
         for note in ins.notes
             seqnote = SeqNote(note.pitch, note.velocity, note.position,
                               note.position + note.duration,
-                              ins.program, ins_num)
+                              ins_num, ins.program)
 
             push!(ns.notes, seqnote)
 
-            if ns.total_time == -1 || seqnote.end_time > ns.total_time
+            if ns.total_time == 0 || seqnote.end_time > ns.total_time
                 ns.total_time = seqnote.end_time
             end
         end
@@ -139,8 +140,6 @@ function midi_to_notesequence(midi::MIDIFile)
         end
     end
 
-    # Convert midifile back to relative time
-    torelativetime!(midi)
     return ns
 end
 
