@@ -354,3 +354,98 @@ function transpose(ns::NoteSequence, amount::Int, minpitch::Int, maxpitch::Int)
 
     ns, num_deleted
 end
+
+
+function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
+    sequence.isquantized && throw(error("Can only apply sustain to unquantized NoteSequence"))
+
+    ns = deepcopy(sequence)
+
+    # Priority for events (used when sorting)
+    _SUS_ON, _SUS_OFF, _NOTE_ON, _NOTE_OFF = (0, 1, 2, 3)
+
+    events = Any[]
+    onsets = [(note.start_time, _NOTE_ON, note) for note in ns.notes]
+    offsets = [(note.end_time, _NOTE_OFF, note) for note in ns.notes]
+    append!(events, [onsets..., offsets...])
+
+    for cc in ns.controlchanges
+        if cc.controller == sustaincontrolnumber
+            if cc.value >= 64
+                push!(events, (cc.time, _SUS_ON, cc))
+            elseif cc.value < 64
+                push!(events, (cc.time, _SUS_OFF, cc))
+            end
+        end
+    end
+
+    # Sort the list of events by time and priority (to ensure the order of processing)
+    sort!(events, by=event->getindex(event, [1, 2]))
+
+    # Map instrument to its currently active notes
+    active_notes = DefaultDict{Int, Vector{SeqNote}}(Vector{SeqNote})
+    # Map instrument to its sustain status
+    sustainactive = DefaultDict{Int, Bool}(()->false)
+    end_time = 0
+    for (time, event_type, event) in events
+        if event_type == _SUS_ON
+            sustainactive[event.instrument] = true
+        elseif event_type == _SUS_OFF
+            sustainactive[event.instrument] = false
+            # End all the notes that were being extended for this instrument
+            new_active_notes = Vector{SeqNote}()
+            for note in active_notes[event.instrument]
+                if note.end_time < time
+                    # Update this note's end time since it was being sustained
+                    note.end_time = time
+                    ns.total_time = time
+                else
+                    # Keep this note since it is still active
+                    push!(new_active_notes, note)
+                end
+            end
+            active_notes[event.instrument] = new_active_notes
+        elseif event_type == _NOTE_ON
+            if sustainactive[event.instrument]
+                # If sustain is on,
+                # end all the previous notes with the same pitch
+                new_active_notes = Vector{SeqNote}()
+                for note in active_notes[event.instrument]
+                    if note.pitch == event.pitch
+                        note.end_time = time
+                        if note.start_time == note.end_time
+                            # Remove this note since it has no duration
+                            # as another note of the same pitch has started at the same time
+                            idx = findall(n->n == note)
+                            deleteat!(ns.notes, idx)
+                        end
+                    else
+                        push!(new_active_notes, note)
+                    end
+                end
+                active_notes[event.instrument] = new_active_notes
+            end
+            push!(active_notes[event.instrument], event)
+        elseif event_type == _NOTE_OFF
+            # If sustain is active, ignore
+            # Otherwise, remove this event from active_notes
+            if !sustainactive[event.instrument]
+                if event in active_notes[event.instrument]
+                    idx = findall(e->e == event, active_notes[event.instrument])
+                    deleteat!(active_notes[event.instrument], idx)
+                end
+            end
+        end
+        end_time = time
+    end
+
+    for instrument_notes in values(active_notes)
+        for note in instrument_notes
+            note.end_time = end_time
+            ns.total_time = end_time
+        end
+    end
+
+    sort!(ns.notes, by=note->note.start_time)
+    ns
+end
