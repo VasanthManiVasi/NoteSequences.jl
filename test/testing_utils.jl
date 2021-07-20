@@ -24,3 +24,14 @@ function addcontrolchanges!(ns::NoteSequence,
         push!(ns.controlchanges, cc)
     end
 end
+
+function notes(ns::NoteSequence, instrument::Int)
+    notesdata = Vector{NTuple{4, Int}}()
+    for note in ns.notes
+        if note.instrument == instrument
+            notedata = (note.pitch, note.velocity, note.start_time, note.end_time)
+            push!(notesdata, notedata)
+        end
+    end
+    notesdata
+end
