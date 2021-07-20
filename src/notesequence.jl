@@ -356,6 +356,17 @@ function transpose(sequence::NoteSequence, amount::Int, minpitch::Int, maxpitch:
     ns, num_deleted
 end
 
+"""
+    applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
+
+Apply the sustain pedal control changes and return a new NoteSequence.
+`sustaincontrolnumber` is the MIDI controller number for the sustain pedal.
+
+For events with the given `sustaincontrolnumber` and values 0-63,
+it will be considered as sustain pedal off.
+For events with the control number and values 64-127,
+it will be considered as sustain pedal on events.
+"""
 function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
     sequence.isquantized && throw(error("Can only apply sustain to unquantized NoteSequence"))
 
