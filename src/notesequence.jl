@@ -325,9 +325,10 @@ end
 Transpose the NoteSequence by `amount` half-steps
 and return the transposed sequence along with the number of deleted notes.
 The allowed range of values for a pitch is defined by `minpitch` and `maxpitch`.
-If the transposed pitch goes out of range, the note is removed.
+If the transposed pitch for a note goes out of that range, the note is removed.
 """
-function transpose(ns::NoteSequence, amount::Int, minpitch::Int, maxpitch::Int)
+function transpose(sequence::NoteSequence, amount::Int, minpitch::Int, maxpitch::Int)
+    ns = deepcopy(sequence)
     new_notes = Vector{SeqNote}()
     num_deleted = 0
     end_time = 0
@@ -354,7 +355,6 @@ function transpose(ns::NoteSequence, amount::Int, minpitch::Int, maxpitch::Int)
 
     ns, num_deleted
 end
-
 
 function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
     sequence.isquantized && throw(error("Can only apply sustain to unquantized NoteSequence"))
@@ -446,6 +446,5 @@ function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=6
         end
     end
 
-    sort!(ns.notes, by=note->note.start_time)
     ns
 end
