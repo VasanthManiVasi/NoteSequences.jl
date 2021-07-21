@@ -1,6 +1,8 @@
+using NoteSequences.PerformanceRepr
+
 @testset "PerformanceEvent encoding/decoding" begin
     pe = PerformanceEvent
-    perf = Performance(100, velocity_bins=16)
+    perfencoder = PerformanceOneHotEncoding(num_velocitybins=16)
     pairs = [
         (pe(NOTE_ON, 60), 60),
         (pe(NOTE_ON, 0), 0),
@@ -20,8 +22,8 @@
     ]
 
     for (event, index) in pairs
-        @test index == encodeindex(event, perf)
-        @test event == decodeindex(index, perf)
+        @test index == encodeindex(event, perfencoder)
+        @test event == decodeindex(index, perfencoder)
     end
 end
 
