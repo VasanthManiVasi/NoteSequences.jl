@@ -5,9 +5,9 @@ using MIDI, DataStructures
 include("constants.jl")
 include("instruments.jl")
 include("notesequence.jl")
-include("PerformanceRepresentation/PerformanceRepresentation.jl")
+include("PerformanceRepr/PerformanceRepr.jl")
 
-using .PerformanceRepresentation
+using .PerformanceRepr
 export Performance, PerformanceEvent
 
 end

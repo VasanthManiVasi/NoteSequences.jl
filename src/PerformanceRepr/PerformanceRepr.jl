@@ -1,5 +1,6 @@
-module PerformanceRepresentation
+module PerformanceRepr
 
+using MIDI, DataStructures
 using ..NoteSequences
 
 # Performance representation related constants
@@ -12,5 +13,6 @@ const DEFAULT_MAX_SHIFT_STEPS = 100
 export NOTE_ON, NOTE_OFF, TIME_SHIFT, VELOCITY
 
 include("performance.jl")
+include("encoder_decoder.jl")
 
 end

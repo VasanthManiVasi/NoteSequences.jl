@@ -1,7 +1,8 @@
 export PerformanceEvent, Performance
 export getnotesequence, encodeindex, decodeindex, set_length
 
-using ..NoteSequences: SeqNote, MIN_MIDI_VELOCITY, MAX_MIDI_VELOCITY, MIN_MIDI_PITCH, MAX_MIDI_PITCH
+using ..NoteSequences: SeqNote, DEFAULT_QPM, DEFAULT_TPQ
+using ..NoteSequences: MIN_MIDI_VELOCITY, MAX_MIDI_VELOCITY, MIN_MIDI_PITCH, MAX_MIDI_PITCH
 
 """
     PerformanceEvent <: Any
@@ -59,7 +60,9 @@ function Base.show(io::IO, a::PerformanceEvent)
     print(io, s)
 end
 
-"""     Performance <: Any
+"""
+    Performance <: Any
+
 `Performance` holds the vector of `PerformanceEvent`s along with its parameters.
 
 ## Fields
@@ -68,10 +71,7 @@ end
 * `startstep::Int`: The start step of the performance relative to the source sequence.
 * `velocity_bins::Int`: Number of bins for velocity values.
 * `steps_per_second::Int`: Number of steps per second for quantization.
-* `num_classes::Int`: Total number of event classes (`NOTE_ON` events + `NOTE_OFF` events +
-                        `TIME_SHIFT` events + `VELOCITY` events)
 * `max_shift_steps::Int`: Maximum number of steps in a `TIME_SHIFT` event.
-* `event_ranges::Vector{Tuple{Int, Int, Int}}`: Stores the min and max values of each event type.
 """
 mutable struct Performance
     events::Vector{PerformanceEvent}
@@ -79,25 +79,20 @@ mutable struct Performance
     startstep::Int
     velocity_bins::Int
     steps_per_second::Int
-    num_classes::Int
     max_shift_steps::Int
-    event_ranges::Vector{Tuple{Int, Int ,Int}} # Stores the range of each event type
 
     function Performance(startstep::Int,
                          velocity_bins::Int,
                          steps_per_second::Int,
                          max_shift_steps::Int;
-                         events::Vector{PerformanceEvent}=Vector{PerformanceEvent}(),
                          program::Int = -1)
 
-        event_ranges = [
-            (NOTE_ON, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
-            (NOTE_OFF, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
-            (TIME_SHIFT, 1, max_shift_steps)
-        ]
-        velocity_bins > 0 && push!(event_ranges, (VELOCITY, 1, velocity_bins))
-        num_classes = sum(map(range -> range[3] - range[2] + 1, event_ranges))
-        new(events, program, startstep, velocity_bins, steps_per_second, num_classes, max_shift_steps, event_ranges)
+        new(Vector{PerformanceEvent}(),
+            program,
+            startstep,
+            velocity_bins,
+            steps_per_second,
+            max_shift_steps)
     end
 end
 
@@ -108,7 +103,7 @@ function Performance(quantizedns::NoteSequence;
                      instrument::Int = -1)
 
     if !quantizedns.isquantized
-        throw(ArgumentError("The `NoteSequence` is not quantized."))
+        throw(ArgumentError("The `NoteSequence` must be quantized."))
     end
 
     steps_per_second = quantizedns.sps
@@ -127,9 +122,7 @@ function Performance(steps_per_second::Int;
 end
 
 function Base.getproperty(performance::Performance, sym::Symbol)
-    if sym === :labels
-        return 0:(performance.num_classes - 1)
-    elseif sym === :numsteps
+    if sym === :numsteps
         steps = 0
         for event in performance
             if event.event_type == TIME_SHIFT
@@ -155,20 +148,17 @@ Base.pop!(p::Performance) = pop!(p.events)
 Base.append!(p::Performance, events::Vector{PerformanceEvent}) = append!(p.events, events)
 
 function Base.append!(p1::Performance, p2::Performance)
-    p1.event_ranges == p2.event_ranges || throw(
-        ArgumentError("The performances do not have the same event ranges."))
-    p1.num_classes == p2.num_classes || throw(
-        ArgumentError("The performances do not have the same number of classes."))
     append!(p1, p2.events)
 end
 
 function Base.copy(p::Performance)
-    Performance(copy(p.events),
+    Performance(
+        copy(p.events),
+        p.program,
+        p.startstep,
         p.velocity_bins,
         p.steps_per_second,
-        p.num_classes,
-        p.max_shift_steps,
-        p.event_ranges)
+        p.max_shift_steps)
 end
 
 """
@@ -387,32 +377,6 @@ function set_length(performance::Performance, steps::Int)
     end
 
     @assert performance.numsteps == steps
-end
-
-"""     encodeindex(event::PerformanceEvent, performance::Performance)
-Encodes a `PerformanceEvent` to its corresponding one hot index.
-"""
-function encodeindex(event::PerformanceEvent, performance::Performance)
-    offset = 0
-    for (type, min, max) in performance.event_ranges
-        if event.event_type == type
-            return offset + event.event_value - min
-        end
-        offset += (max - min + 1)
-    end
-end
-
-"""     decodeindex(idx::Int, performance::Performance)
-Decodes a one hot index to its corresponding `PerformanceEvent`.
-"""
-function decodeindex(idx::Int, performance::Performance)
-    offset = 0
-    for (type, min, max) in performance.event_ranges
-        if idx < offset + (max - min + 1)
-            return PerformanceEvent(type, min + idx - offset)
-        end
-        offset += (max - min + 1)
-    end
 end
 
 """     binsize(velocity_bins)
