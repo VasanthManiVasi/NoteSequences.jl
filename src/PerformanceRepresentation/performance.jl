@@ -1,9 +1,7 @@
 export PerformanceEvent, Performance
 export getnotesequence, encodeindex, decodeindex, set_length
 
-const DEFAULT_MAX_SHIFT_STEPS = 100
-const DEFAULT_PROGRAM = 0
-
+using ..NoteSequences: SeqNote, MIN_MIDI_VELOCITY, MAX_MIDI_VELOCITY, MIN_MIDI_PITCH, MAX_MIDI_PITCH
 
 """
     PerformanceEvent <: Any
@@ -200,14 +198,6 @@ function getperfevents(quantizedns::NoteSequence,
              if note.start_time >= startstep &&
              (instrument == -1 || note.instrument == instrument)]
 
-    _extractperfevents(notes, startstep, velocity_bins, max_shift_steps)
-end
-
-function _extractperfevents(notes::Vector{SeqNote},
-                            startstep::Int,
-                            velocity_bins::Int,
-                            max_shift_steps::Int)
-
     sort!(notes, by=note->(note.start_time, note.pitch))
 
     onsets = [(note.start_time, idx, false) for (idx, note) in enumerate(notes)]
@@ -267,6 +257,7 @@ function tosequence(performance::Performance,
     sequence = NoteSequence(DEFAULT_TPQ, isquantized=false)
     seqstart_time = performance.startstep * ticks_per_step
 
+    DEFAULT_PROGRAM = 0
     if program == -1
         program = ifelse(performance.program != -1, performance.program, DEFAULT_PROGRAM)
     end
