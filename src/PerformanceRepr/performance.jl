@@ -85,9 +85,10 @@ mutable struct Performance
                          velocity_bins::Int,
                          steps_per_second::Int,
                          max_shift_steps::Int;
-                         program::Int = -1)
+                         program::Int=-1,
+                         events::Vector{PerformanceEvent}=Vector{PerformanceEvent}())
 
-        new(Vector{PerformanceEvent}(),
+        new(events,
             program,
             startstep,
             velocity_bins,

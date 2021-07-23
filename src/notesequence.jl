@@ -297,10 +297,10 @@ function temporalstretch!(ns::NoteSequence, factor::Real)
 
     # Stretch notes and total time of the NoteSequence
     for note in ns.notes
-        note.start_time *= factor
-        note.end_time *= factor
+        note.start_time = round(note.start_time * factor)
+        note.end_time = round(note.end_time * factor)
     end
-    ns.total_time *= factor
+    ns.total_time = round(ns.total_time * factor)
 
     # Stretch tempos
     for tempo in ns.tempos
@@ -309,11 +309,11 @@ function temporalstretch!(ns::NoteSequence, factor::Real)
 
     # Stretch event times for all other events
     for event in flatten((ns.timesignatures, ns.keysignatures))
-        event.dT *= factor
+        event.dT = round(event.dT * factor)
     end
 
     for event in flatten((ns.tempos, ns.pitchbends, ns.controlchanges))
-        event.time *= factor
+        event.time = round(event.time * factor)
     end
 
     ns

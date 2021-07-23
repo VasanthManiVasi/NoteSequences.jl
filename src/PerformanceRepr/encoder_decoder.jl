@@ -17,7 +17,7 @@ struct PerformanceOneHotEncoding
     num_classes::Int
 
     function PerformanceOneHotEncoding(;num_velocitybins::Int=0,
-                                        max_shift_steps=DEFAULT_MAX_SHIFT_STEPS,
+                                        max_shift_steps::Int=DEFAULT_MAX_SHIFT_STEPS,
                                         minpitch::Int=MIN_MIDI_PITCH,
                                         maxpitch::Int=MAX_MIDI_PITCH)
         event_ranges = [
