@@ -16,10 +16,13 @@ struct PerformanceOneHotEncoding
     event_ranges::Vector{NTuple{3, Int}}
     num_classes::Int
 
-    function PerformanceOneHotEncoding(;num_velocitybins::Int=0, max_shift_steps=DEFAULT_MAX_SHIFT_STEPS)
+    function PerformanceOneHotEncoding(;num_velocitybins::Int=0,
+                                        max_shift_steps=DEFAULT_MAX_SHIFT_STEPS,
+                                        minpitch::Int=MIN_MIDI_PITCH,
+                                        maxpitch::Int=MAX_MIDI_PITCH)
         event_ranges = [
-            (NOTE_ON, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
-            (NOTE_OFF, MIN_MIDI_PITCH, MAX_MIDI_PITCH)
+            (NOTE_ON, minpitch, maxpitch)
+            (NOTE_OFF, minpitch, maxpitch)
             (TIME_SHIFT, 1, max_shift_steps)
         ]
         num_velocitybins > 0 && push!(event_ranges, (VELOCITY, 1, num_velocitybins))
