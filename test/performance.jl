@@ -4,21 +4,21 @@ using NoteSequences.PerformanceRepr
     pe = PerformanceEvent
     perfencoder = PerformanceOneHotEncoding(num_velocitybins=16)
     pairs = [
-        (pe(NOTE_ON, 60), 60),
-        (pe(NOTE_ON, 0), 0),
-        (pe(NOTE_ON, 22), 22),
-        (pe(NOTE_ON, 127), 127),
-        (pe(NOTE_OFF, 72), 200),
-        (pe(NOTE_OFF, 0), 128),
-        (pe(NOTE_OFF, 22), 150),
-        (pe(NOTE_OFF, 127), 255),
-        (pe(TIME_SHIFT, 10), 265),
-        (pe(TIME_SHIFT, 1), 256),
-        (pe(TIME_SHIFT, 72), 327),
-        (pe(TIME_SHIFT, 100), 355),
-        (pe(VELOCITY, 5), 360),
-        (pe(VELOCITY, 1), 356),
-        (pe(VELOCITY, 16), 371)
+        (pe(NOTE_ON, 60), 61),
+        (pe(NOTE_ON, 0), 1),
+        (pe(NOTE_ON, 22), 23),
+        (pe(NOTE_ON, 127), 128),
+        (pe(NOTE_OFF, 72), 201),
+        (pe(NOTE_OFF, 0), 129),
+        (pe(NOTE_OFF, 22), 151),
+        (pe(NOTE_OFF, 127), 256),
+        (pe(TIME_SHIFT, 10), 266),
+        (pe(TIME_SHIFT, 1), 257),
+        (pe(TIME_SHIFT, 72), 328),
+        (pe(TIME_SHIFT, 100), 356),
+        (pe(VELOCITY, 5), 361),
+        (pe(VELOCITY, 1), 357),
+        (pe(VELOCITY, 16), 372)
     ]
 
     for (event, index) in pairs

@@ -21,8 +21,8 @@ struct PerformanceOneHotEncoding
                                         minpitch::Int=MIN_MIDI_PITCH,
                                         maxpitch::Int=MAX_MIDI_PITCH)
         event_ranges = [
-            (NOTE_ON, minpitch, maxpitch)
-            (NOTE_OFF, minpitch, maxpitch)
+            (NOTE_ON, minpitch, maxpitch),
+            (NOTE_OFF, minpitch, maxpitch),
             (TIME_SHIFT, 1, max_shift_steps)
         ]
         num_velocitybins > 0 && push!(event_ranges, (VELOCITY, 1, num_velocitybins))
@@ -33,7 +33,7 @@ end
 
 function Base.getproperty(perfencoder::PerformanceOneHotEncoding, sym::Symbol)
     if sym === :labels
-        return 0:(perfencoder.num_classes - 1)
+        return 1:perfencoder.num_classes
     elseif sym === :defaultevent
         return PerformanceEvent(TIME_SHIFT, DEFAULT_MAX_SHIFT_STEPS)
     else
@@ -47,13 +47,16 @@ end
 Encodes a `PerformanceEvent` to its corresponding one hot index.
 """
 function encodeindex(event::PerformanceEvent, performance::PerformanceOneHotEncoding)
-    offset = 0
+    # Start at one to account for 1-based indexing
+    offset = 1
     for (type, min, max) in performance.event_ranges
         if event.event_type == type
             return offset + event.event_value - min
         end
         offset += (max - min + 1)
     end
+
+    throw(error("Unknown type for PerformanceEvent"))
 end
 
 """
@@ -62,11 +65,14 @@ end
 Decodes a one hot index to its corresponding `PerformanceEvent`.
 """
 function decodeindex(idx::Int, performance::PerformanceOneHotEncoding)
-    offset = 0
+    # Start at one to account for 1-based indexing
+    offset = 1
     for (type, min, max) in performance.event_ranges
         if idx < offset + (max - min + 1)
             return PerformanceEvent(type, min + idx - offset)
         end
         offset += (max - min + 1)
     end
+
+    throw(error("Unknown index"))
 end
