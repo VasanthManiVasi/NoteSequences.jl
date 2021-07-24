@@ -236,7 +236,11 @@ function getnotesequence(performance::Performance,
                          program::Int = -1)
 
     ticks_per_step = second_to_tick(1, DEFAULT_QPM, DEFAULT_TPQ) / performance.steps_per_second
-    tosequence(performance, ticks_per_step, velocity, instrument, program)
+    ns = tosequence(performance, ticks_per_step, velocity, instrument, program)
+    push!(ns.tempos, NoteSequences.Tempo(0, 120.0))
+    push!(ns.timesignatures, MIDI.TimeSignatureEvent(0, 4, 4, 24, 8))
+
+    ns
 end
 
 function tosequence(performance::Performance,
