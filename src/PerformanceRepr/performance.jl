@@ -201,11 +201,12 @@ function getperfevents(quantizedns::NoteSequence,
 
     for (step, idx, isoffset) in noteevents
         if step > currentstep
-            while step > currentstep + max_shift_steps
+            while step > (currentstep + max_shift_steps)
                 push!(perfevents, PerformanceEvent(TIME_SHIFT, max_shift_steps))
                 currentstep += max_shift_steps
             end
             push!(perfevents, PerformanceEvent(TIME_SHIFT, step - currentstep))
+            currentstep = step
         end
 
         if velocity_bins > 0
