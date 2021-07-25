@@ -7,7 +7,7 @@ using Base.Iterators
 """
     SeqNote <: Any
 
-Structure to hold the data in a [`MIDI.Note`](@ref) along with it's `program` and `instrument`.
+Stores the [`MIDI.Note`](@ref) data along with it's `program` and `instrument`.
 """
 mutable struct SeqNote
     pitch::Int
@@ -21,7 +21,9 @@ end
 """
     Tempo <: Any
 
-Structure to hold the `qpm` from a [`MIDI.SetTempoEvent`](@ref).
+Stores the tempo information from a [`MIDI.SetTempoEvent`](@ref).
+
+`qpm` is the tempo in quarter notes per minute.
 """
 mutable struct Tempo
     time::Int
@@ -31,7 +33,7 @@ end
 """
     PitchBend <: Any
 
-Structure to hold the data in a [`MIDI.PitchBendEvent`](@ref) along with it's `program` and `instrument`.
+Stores the [`MIDI.PitchBendEvent`](@ref) data along with it's `program` and `instrument`.
 """
 mutable struct PitchBend
     time::Int
@@ -53,6 +55,35 @@ mutable struct ControlChange
     program::Int
 end
 
+"""
+    NoteSequence <: Any
+
+`NoteSequence` contains a symbolic sequence of music represented by data
+in the form of notes, control changes, pitch bend, etc.
+It closely follows the structure of a MIDI file.
+
+Unlike a MIDI file, each event in a `NoteSequence` also stores the corresponding program
+and instrument number.
+
+## Fields
+* `tpq::Int=220`: Resolution in ticks per quarter.
+* `isquantized::Bool=false`: If true, the sequence is quantized and all the time information
+   in the sequence is represented in integer steps. Otherwise, the sequence is unquantized
+   and all the time information in the sequence is represented in ticks.
+* `sps::Int=-1`: Amount of quantization steps per second (only used if the sequence is quantized).
+* `total_time::Int=0`: Total time of the sequence. It is the end time of the final the note.
+   It does not count the end time of other events, if they occur after the final note.
+* `timesignatures::Vector{TimeSignatureEvent}=[]`: Stores the time signature information
+   in the sequence.
+* `keysignatures::Vector{KeySignatureEvent}=[]`:  Stores the key signature information
+   in the sequence.
+* `tempos::Vector{Tempo}=[]`: Stores the tempo (quarter notes per minute) changes in the sequence.
+* `notes::Vector{SeqNote}=[]`: Stores the musical notes in the sequence.
+* `pitchbends::Vector{PitchBend}=[]`: Stores the `PitchBend` data that's useful for performance
+   and re-synthesis.
+* `controlchanges::Vector{ControlChange}=[]`: Stores the `ControlChange` data that's useful for
+   performance and re-synthesis.
+"""
 Base.@kwdef mutable struct NoteSequence
     tpq::Int = 220
     isquantized::Bool = false

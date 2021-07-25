@@ -63,7 +63,10 @@ end
 """
     Performance <: Any
 
-`Performance` holds the vector of `PerformanceEvent`s along with its parameters.
+`Performance` represents a polyphonic sequence
+as a stream of `PerformanceEvent`s.
+
+See [`PerformanceEvent`](@ref)
 
 ## Fields
 * `events::Vector{PerformanceEvent}`: The performance in a vector of `PerformanceEvent`s.
