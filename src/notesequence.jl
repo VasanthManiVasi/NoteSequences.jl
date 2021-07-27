@@ -272,6 +272,7 @@ end
 
 """
     absolutequantize!(ns::NoteSequence, sps::Int)
+    absolutequantize(ns::NoteSequence, sps::Int)
 
 Quantize a NoteSequence to absolute time based on the given steps per second (`sps`).
 """
@@ -311,6 +312,11 @@ function absolutequantize!(ns::NoteSequence, sps::Int)
     ns.sps = sps
 
     ns
+end
+
+function absolutequantize(ns::NoteSequence, sps::Int)
+    ns = deepcopy(ns)
+    absolutequantize!(ns, sps)
 end
 
 """
