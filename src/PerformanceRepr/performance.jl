@@ -284,7 +284,7 @@ function tosequence(performance::Performance,
 
                 start_time = round(ticks_per_step * pitchstartstep) + seqstart_time
                 end_time = round(ticks_per_step * step) + seqstart_time
-                note = SeqNote(event.event_value, pitchvelocity, start_time, end_time, program, instrument)
+                note = SeqNote(event.event_value, pitchvelocity, start_time, end_time, instrument, program)
                 push!(sequence.notes, note)
                 if note.end_time > sequence.total_time
                     sequence.total_time = note.end_time
@@ -310,9 +310,9 @@ function tosequence(performance::Performance,
 
             start_time = round(ticks_per_step * pitchstartstep) + seqstart_time
             end_time = round(ticks_per_step * step) + seqstart_time
-            # End after 5 seconds?
+            # Maybe end after 5 seconds?
             # end_time = start_time + round(ticks_per_step * 5 * performance.steps_per_second)
-            note = SeqNote(pitch, pitchvelocity, start_time, end_time, program, instrument)
+            note = SeqNote(pitch, pitchvelocity, start_time, end_time, instrument, program)
             push!(sequence.notes, note)
             if note.end_time > sequence.total_time
                 sequence.total_time = note.end_time
