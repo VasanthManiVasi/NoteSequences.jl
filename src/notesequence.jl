@@ -45,7 +45,7 @@ end
 """
     ControlChange <: Any
 
-Structure to hold the data in a [`MIDI.ControlChangeEvent`](@ref) along with it's `program` and `instrument`.
+Stores the [`MIDI.ControlChangeEvent`](@ref) data along with it's `program` and `instrument`.
 """
 mutable struct ControlChange
     time::Int
@@ -394,6 +394,7 @@ function transpose(sequence::NoteSequence, amount::Int, minpitch::Int, maxpitch:
 end
 
 """
+    applysustainchanges!(sequence::NoteSequence, sustaincontrolnumber::Int=64)
     applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
 
 Apply the sustain pedal control changes and return a new NoteSequence.
@@ -404,10 +405,9 @@ it will be considered as sustain pedal off.
 For events with the control number and values 64-127,
 it will be considered as sustain pedal on events.
 """
-function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
-    sequence.isquantized && throw(error("Can only apply sustain to unquantized NoteSequence"))
-
-    ns = deepcopy(sequence)
+function applysustainchanges!(ns::NoteSequence, sustaincontrolnumber::Int=64)
+    ns.isquantized &&
+        throw(error("Can only apply sustain changes to an unquantized NoteSequence"))
 
     # Priority for events (used when sorting)
     _SUS_ON, _SUS_OFF, _NOTE_ON, _NOTE_OFF = (0, 1, 2, 3)
@@ -495,4 +495,9 @@ function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=6
     end
 
     ns
+end
+
+function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
+    ns = deepcopy(sequence)
+    applysustainchanges!(ns, sustaincontrolnumber)
 end
