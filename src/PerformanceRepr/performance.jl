@@ -3,6 +3,7 @@ export getnotesequence, encodeindex, decodeindex, set_length
 
 using ..NoteSequences: SeqNote, DEFAULT_QPM, DEFAULT_TPQ
 using ..NoteSequences: MIN_MIDI_VELOCITY, MAX_MIDI_VELOCITY, MIN_MIDI_PITCH, MAX_MIDI_PITCH
+using MacroTools: @forward
 
 """
     PerformanceEvent <: Any
@@ -139,16 +140,11 @@ function Base.getproperty(performance::Performance, sym::Symbol)
     end
 end
 
-Base.length(p::Performance) = length(p.events)
-Base.getindex(p::Performance, idx::Int) = p.events[idx]
-Base.getindex(p::Performance, range) = p.events[range]
-Base.lastindex(p::Performance) = lastindex(p.events)
-Base.firstindex(p::Performance) = firstindex(p.events)
+@forward Performance.events Base.length, Base.getindex, Base.lastindex, Base.pop!
+
 Base.setindex!(p::Performance, event::PerformanceEvent, idx::Int) = setindex!(p.events, event, idx)
 Base.iterate(p::Performance, state=1) = iterate(p.events, state)
-Base.view(p::Performance, range) = view(p.events, range)
 Base.push!(p::Performance, event::PerformanceEvent) = push!(p.events, event)
-Base.pop!(p::Performance) = pop!(p.events)
 Base.append!(p::Performance, events::Vector{PerformanceEvent}) = append!(p.events, events)
 
 function Base.append!(p1::Performance, p2::Performance)
