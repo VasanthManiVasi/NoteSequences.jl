@@ -1,4 +1,4 @@
-export NoteSequence, midi_to_notesequence, notesequence_to_midi
+export NoteSequence, midi_to_notesequence, notesequence_to_midi, second2tick
 
 using MIDI
 using MIDI: TimeSignatureEvent, KeySignatureEvent, SetTempoEvent
@@ -107,6 +107,19 @@ function NoteSequence(tpq::Int; isquantized::Bool = false, sps::Int = -1)
     end
 
     NoteSequence(tpq=tpq, isquantized=isquantized, sps=sps)
+end
+
+function Base.getproperty(ns::NoteSequence, sym::Symbol)
+    if sym === :steps_per_quarter
+        if !ns.isquantized
+            steps_per_quarter = -1
+        else
+            steps_per_quarter = 60.0 / ns.tempos[1].qpm * ns.sps
+        end
+        return steps_per_quarter
+    else
+        return getfield(ns, sym)
+    end
 end
 
 function Base.show(io::IO, ns::NoteSequence)
@@ -270,27 +283,16 @@ function quantizedstep(ticks::Int, tpq::Int, qpm::Float64, sps::Int, cutoff=QUAN
     floor(Int, steps + (1 - cutoff))
 end
 
-"""
-    absolutequantize!(ns::NoteSequence, sps::Int)
-    absolutequantize(ns::NoteSequence, sps::Int)
-
-Quantize a NoteSequence to absolute time based on the given steps per second (`sps`).
-"""
-function absolutequantize!(ns::NoteSequence, sps::Int)
-    ns.isquantized && throw(error("The NoteSequence is already quantized"))
-
-    for tempo in ns.tempos[2:end]
-        if tempo.qpm != ns.tempos[1].qpm
-            throw(error("The NoteSequence has multiple tempo changes"))
-        end
-    end
+function quantize_notes!(ns::NoteSequence, sps::Int)
     qpm = ns.tempos[1].qpm
-
-    ns.total_time = quantizedstep(ns.total_time, ns.tpq, qpm, sps)
 
     for note in ns.notes
         note.start_time = quantizedstep(note.start_time, ns.tpq, qpm, sps)
         note.end_time = quantizedstep(note.end_time, ns.tpq, qpm, sps)
+
+        if note.start_time == note.end_time
+            note.end_time += 1
+        end
 
         if ns.total_time == -1 || note.end_time > ns.total_time
             ns.total_time = note.end_time
@@ -314,9 +316,78 @@ function absolutequantize!(ns::NoteSequence, sps::Int)
     ns
 end
 
+"""
+    absolutequantize!(ns::NoteSequence, sps::Int)
+    absolutequantize(ns::NoteSequence, sps::Int)
+
+Quantize a NoteSequence to absolute time based on the given steps per second (`sps`).
+"""
+function absolutequantize!(ns::NoteSequence, sps::Int)
+    ns.isquantized && throw(error("The NoteSequence is already quantized"))
+
+    for tempo in ns.tempos[2:end]
+        if tempo.qpm != ns.tempos[1].qpm
+            throw(error("The NoteSequence has multiple tempo changes"))
+        end
+    end
+    qpm = ns.tempos[1].qpm
+
+    ns.total_time = quantizedstep(ns.total_time, ns.tpq, qpm, sps)
+    quantize_notes!(ns, sps)
+end
+
 function absolutequantize(ns::NoteSequence, sps::Int)
     ns = deepcopy(ns)
     absolutequantize!(ns, sps)
+end
+
+function relativequantize!(ns::NoteSequence, steps_per_quarter::Int)
+    ns.isquantized && throw(error("The NoteSequence is already quantized"))
+
+    if isempty(ns.timesignatures)
+        push!(ns.timesignatures, MIDI.TimeSignatureEvent(0, 4, 4, 24, 8))
+    else
+        timesignatures = sort(ns.timesignatures, by=timesig->timesig.dT)
+        if timesignatures[1].dT != 0 &&
+                !(timesignatures[1].numerator == 4 && timesignatures[1].denominator == 4)
+            throw(error("Found multiple time signature changes due to an implicit time signature"))
+        end
+
+        for timesignature in timesignatures[2:end]
+            if (timesignature.numerator != ns.timesignatures[1].numerator ||
+                    timesignatures.denominator != ns.timesignatures[1].denominator)
+                throw(error("Found multiple time signatures in the note sequence."))
+            end
+        end
+    end
+
+    if isempty(ns.tempos)
+        push!(ns.tempos, NoteSequences.Tempo(0, DEFAULT_QPM))
+    else
+        tempos = sort(ns.tempos, by=tempo->tempo.time)
+        tempos[1].time != 0 && tempos[1].qpm != DEFAULT_QPM &&
+            throw(error("Found multiple tempo changes due to an implicit tempo change."))
+
+        for tempo in tempos
+            tempo.qpm != ns.tempos[1].qpm &&
+                throw(error("Found multiple tempo changes in the note sequence."))
+        end
+    end
+
+    qpm = ns.tempos[1].qpm
+
+    # Convert steps per quarter to quantization steps per second
+    sps = round(Int, steps_per_quarter * qpm / 60.0)
+
+    ns.total_time =  quantizedstep(ns.total_time, ns.tpq, qpm, sps)
+    quantize_notes!(ns, sps)
+
+    ns
+end
+
+function relativequantize(ns::NoteSequence, steps_per_quarter::Int)
+    ns = deepcopy(ns)
+    relativequantize!(ns, steps_per_quarter)
 end
 
 """
@@ -500,4 +571,8 @@ end
 function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=64)
     ns = deepcopy(sequence)
     applysustainchanges!(ns, sustaincontrolnumber)
+end
+
+function second2tick(seconds::Float64, tpq::Int=DEFAULT_TPQ,  qpm::Float64=DEFAULT_QPM)
+    round(seconds * 1e3 / ms_per_tick(tpq, qpm))
 end
