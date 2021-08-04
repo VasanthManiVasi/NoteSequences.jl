@@ -128,6 +128,58 @@ function Melody(qns::NoteSequence,
     melody
 end
 
+function getnotesequence(melody::Melody;
+                         velocity::Int=100,
+                         instrument::Int=1,
+                         program::Int=0,
+                         sequence_start_time::Int=0,
+                         qpm::Float64=DEFAULT_QPM)
+
+    seconds_per_step = 60 / qpm / melody.steps_per_quarter
+    ns = NoteSequence()
+    push!(ns.tempos, NoteSequences.Tempo(0, qpm))
+    ns.tpq = DEFAULT_TPQ
+
+    sequence_start_time += melody.startstep * seconds_per_step
+    note_is_playing = false
+    local current_seqnote
+
+    for (step, note) in enumerate(melody)
+        seconds = step * seconds_per_step + sequence_start_time
+        new_note_start_time = second2tick(seconds)
+
+        if MIN_MIDI_PITCH <= note <= MAX_MIDI_PITCH
+            if note_is_playing
+                # End the sustained note
+                current_seqnote.end_time = new_note_start_time
+            end
+
+            current_seqnote = NoteSequences.SeqNote(note, velocity,
+                                                    new_note_start_time, 0,
+                                                    instrument, program)
+
+            push!(ns.notes, current_seqnote)
+            note_is_playing = true
+
+        elseif note == MELODY_NOTE_OFF
+            if note_is_playing
+                current_seqnote.end_time = new_note_start_time
+                note_is_playing = false
+            end
+        end
+    end
+
+    if note_is_playing
+        current_seqnote.end_time = second2tick(length(melody) * seconds_per_step + sequence_start_time)
+    end
+
+    if !isempty(ns.notes)
+        ns.total_time = ns.notes[end].end_time
+    end
+
+    ns
+end
+
 function setlength!(melody::Melody, steps::Int)
     oldlength = length(melody)
 
