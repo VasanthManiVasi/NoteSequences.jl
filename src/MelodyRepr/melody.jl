@@ -52,6 +52,82 @@ end
 
 Base.setindex!(m::Melody, event::Int, idx::Int) = setindex!(m.events, event, idx)
 
+function Melody(qns::NoteSequence,
+                search_start_step::Int=0,
+                gapbars::Int=1,
+                ignore_polyphony::Bool=false,
+                pad_end::Bool=false,
+                instrument::Int=1)
+
+    !qns.isquantized && throw(error("NoteSequence must be relative quantized."))
+
+    quarters_per_beat = 4 / qns.timesignatures[1].denominator
+    quarters_per_bar = quarters_per_beat * qns.timesignatures[1].numerator
+    steps_per_bar = quarters_per_bar * qns.steps_per_quarter
+    steps_per_bar % 1 != 0 && throw(error("Steps per bar must be an integer"))
+
+    melody = Melody()
+    melody.steps_per_bar = round(steps_per_bar)
+    melody.steps_per_quarter = qns.steps_per_quarter
+
+    notes = [note for note in qns.notes
+             if note.instrument == instrument && note.start_time >= search_start_step]
+
+    isempty(notes) && return
+
+    sort!(notes, by=note -> (note.start_time, -note.pitch))
+
+    initial_distance = (notes[1].start_time - search_start_step)
+    melody_start_step = notes[1].start_time - initial_distance % melody.steps_per_bar
+
+    for note in notes
+        note.velocity == 0 && continue
+
+        note_start_step = note.start_time - melody_start_step
+        note_end_step = note.end_time - melody_start_step
+
+        if isempty(melody.events)
+            addnote!(melody, note.pitch, note_start_step, note_end_step)
+            continue
+        end
+
+        laston, lastoff = last_onoff_events(melody)
+
+        on_distance = note_start_step - laston
+        off_distance = note_start_step - lastoff
+
+        if on_distance == 0
+            if ignore_polyphony
+                continue # Keeps the highest note
+            else
+                throw(error("More than one note is found at the same time."))
+            end
+        elseif on_distance < 0
+            throw(error("Notes not in ascending order. This is caused due to polyphonic melody."))
+        end
+
+        gapsteps = gapbars * melody.steps_per_bar
+
+        # End the melody if there is a silence of `gap_bars` or More
+        !isempty(melody) && off_distance >= gapsteps && break
+
+        addnote!(melody, note.pitch, note_start_step, note_end_step)
+    end
+
+    isempty(melody) && return
+
+    melody.startstep = melody_start_step
+    melody[end] == MELODY_NOTE_OFF && pop!(melody.events)
+
+    melodylength = length(melody)
+    if pad_end
+        melodylength += (-melodylength % melody.steps_per_bar)
+    end
+    setlength!(melody, melodylength)
+
+    melody
+end
+
 function setlength!(melody::Melody, steps::Int)
     oldlength = length(melody)
 
