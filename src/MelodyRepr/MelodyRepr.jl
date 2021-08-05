@@ -11,5 +11,6 @@ const MIN_MELODY_EVENT = -2
 const MAX_MELODY_EVENT = 127
 
 include("melody.jl")
+include("encoder_decoder.jl")
 
 end
