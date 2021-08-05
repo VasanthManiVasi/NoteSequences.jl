@@ -1,4 +1,5 @@
 export PerformanceOneHotEncoding
+import ..encodeindex, ..decodeindex
 
 using ..NoteSequences: MIN_MIDI_PITCH, MAX_MIDI_PITCH
 
@@ -31,25 +32,25 @@ struct PerformanceOneHotEncoding
     end
 end
 
-function Base.getproperty(perfencoder::PerformanceOneHotEncoding, sym::Symbol)
+function Base.getproperty(encoder::PerformanceOneHotEncoding, sym::Symbol)
     if sym === :labels
-        return 1:perfencoder.num_classes
+        return 1:encoder.num_classes
     elseif sym === :defaultevent
         return PerformanceEvent(TIME_SHIFT, DEFAULT_MAX_SHIFT_STEPS)
     else
-        getfield(perfencoder, sym)
+        getfield(encoder, sym)
     end
 end
 
 """
-    encodeindex(event::PerformanceEvent, performance::PerformanceOneHotEncoding)
+    encodeindex(event::PerformanceEvent, encoder::PerformanceOneHotEncoding)
 
 Encodes a `PerformanceEvent` to its corresponding one hot index.
 """
-function encodeindex(event::PerformanceEvent, performance::PerformanceOneHotEncoding)
+function encodeindex(event::PerformanceEvent, encoder::PerformanceOneHotEncoding)
     # Start at one to account for 1-based indexing
     offset = 1
-    for (type, min, max) in performance.event_ranges
+    for (type, min, max) in encoder.event_ranges
         if event.event_type == type
             return offset + event.event_value - min
         end
@@ -60,14 +61,14 @@ function encodeindex(event::PerformanceEvent, performance::PerformanceOneHotEnco
 end
 
 """
-    decodeindex(idx::Int, performance::PerformanceOneHotEncoding)
+    decodeindex(idx::Int, encoder::PerformanceOneHotEncoding)
 
 Decodes a one hot index to its corresponding `PerformanceEvent`.
 """
-function decodeindex(idx::Int, performance::PerformanceOneHotEncoding)
+function decodeindex(idx::Int, encoder::PerformanceOneHotEncoding)
     # Start at one to account for 1-based indexing
     offset = 1
-    for (type, min, max) in performance.event_ranges
+    for (type, min, max) in encoder.event_ranges
         if idx < offset + (max - min + 1)
             return PerformanceEvent(type, min + idx - offset)
         end

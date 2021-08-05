@@ -1,4 +1,5 @@
 export MelodyOneHotEncoding
+import ..encodeindex, ..decodeindex
 
 using ..NoteSequences: MIN_MIDI_PITCH, MAX_MIDI_PITCH
 

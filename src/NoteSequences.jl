@@ -15,4 +15,6 @@ export Performance, PerformanceEvent
 using .MelodyRepr
 export Melody
 
+export encodeindex, decodeindex
+
 end

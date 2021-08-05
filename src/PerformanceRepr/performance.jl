@@ -1,5 +1,5 @@
 export PerformanceEvent, Performance
-export getnotesequence, encodeindex, decodeindex, set_length
+export getnotesequence, set_length
 
 using ..NoteSequences: SeqNote, DEFAULT_QPM, DEFAULT_TPQ
 using ..NoteSequences: MIN_MIDI_VELOCITY, MAX_MIDI_VELOCITY, MIN_MIDI_PITCH, MAX_MIDI_PITCH

@@ -576,3 +576,7 @@ end
 function second2tick(seconds::Float64, tpq::Int=DEFAULT_TPQ,  qpm::Float64=DEFAULT_QPM)
     round(seconds * 1e3 / ms_per_tick(tpq, qpm))
 end
+
+# Extended by sub modules
+function encodeindex end
+function decodeindex end
