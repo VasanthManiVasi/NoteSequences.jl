@@ -1,7 +1,8 @@
 using NoteSequences.PerformanceRepr
 
+const pe = PerformanceEvent
+
 @testset "PerformanceEvent encoding/decoding" begin
-    pe = PerformanceEvent
     perfencoder = PerformanceOneHotEncoding(num_velocitybins=16)
     pairs = [
         (pe(NOTE_ON, 60), 61),
@@ -30,7 +31,6 @@ end
 @testset "Performance steps and set_length" begin
     @testset "Add length" begin
         perf = Performance(100)
-        pe = PerformanceEvent
         set_length(perf, 42)
         @test perf.numsteps == 42
         @test perf.events == [pe(TIME_SHIFT, 42)]
@@ -46,7 +46,6 @@ end
 
     @testset "Remove length" begin
         perf = Performance(100)
-        pe = PerformanceEvent
         events = [
             pe(NOTE_ON, 60),
             pe(TIME_SHIFT, 100),
@@ -83,7 +82,6 @@ end
 
     @testset "numsteps" begin
         perf = Performance(100)
-        pe = PerformanceEvent
         events = [
             pe(VELOCITY, 32),
             pe(NOTE_ON, 60),
