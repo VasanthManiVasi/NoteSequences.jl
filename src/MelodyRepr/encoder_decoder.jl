@@ -3,6 +3,16 @@ import ..encodeindex, ..decodeindex
 
 using ..NoteSequences: MIN_MIDI_PITCH, MAX_MIDI_PITCH
 
+"""
+    MelodyOneHotEncoding <: Any
+
+One-Hot encoder for `Melody` events.
+
+## Fields
+* `minpitch::Int`: Minimum melody pitch to allow for encoding.
+* `maxpitch::Int`: Maximum melody pitch to allow for encoding.
+* `num_classes::Int`: Total number of event classes.
+"""
 struct MelodyOneHotEncoding
     minpitch::Int
     maxpitch::Int
@@ -31,6 +41,11 @@ function Base.getproperty(encoder::MelodyOneHotEncoding, sym::Symbol)
     end
 end
 
+"""
+    encodeindex(event::Int, encoder::MelodyOneHotEncoding)
+
+Encodes a `Melody` event to its corresponding one hot index.
+"""
 function encodeindex(event::Int, encoder::MelodyOneHotEncoding)
     0 <= event < encoder.minpitch &&
         throw(error("Melody event is less than min melody pitch"))
@@ -49,6 +64,11 @@ function encodeindex(event::Int, encoder::MelodyOneHotEncoding)
     index + 1
 end
 
+"""
+    decodeindex(idx::Int, encoder::MelodyOneHotEncoding)
+
+Decodes a one hot index to its corresponding `Melody` event.
+"""
 function decodeindex(idx::Int, encoder::MelodyOneHotEncoding)
     if idx < NUM_SPECIAL_MELODY_EVENTS + 1
         event = idx - NUM_SPECIAL_MELODY_EVENTS
