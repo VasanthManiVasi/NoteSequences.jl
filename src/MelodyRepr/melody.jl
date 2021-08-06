@@ -4,6 +4,25 @@ using ..NoteSequences: DEFAULT_STEPS_PER_BAR, DEFAULT_STEPS_PER_QUARTER
 using ..NoteSequences: DEFAULT_QPM, DEFAULT_TPQ
 using MacroTools: @forward
 
+"""
+    Melody <: Any
+
+Melody is an intermediate representation for monophonic musical sequences.
+Melody events are integers in the range [-2, 127].
+The negative values are `MELODY_NO_EVENt`, `MELODY_NOTE_OFF` and they are special events.
+Note on events are the non-negative values from [0, 127] and they represent a midi pitch.
+
+A melody note starts at a midi pitch value (non-negative). The note is sustained through
+the following `MELODY_NO_EVENT`s until another midi pitch is reached or a `MELODY_NOTE_OFF`
+event is reached.
+
+## Fields
+* `events::Vector{Int}`: The monophonic melody events in the sequence.
+* `steps_per_bar::Int`: Number of steps per bar of music.
+* `steps_per_quarter::Int`: Number of steps per quarter note.
+* `startstep::Int`: The first step of the melody in the sequence.
+* `endstep::Int`: The last step of the melody in the sequence.
+"""
 mutable struct Melody
     events::Vector{Int}
     steps_per_bar::Int
@@ -52,6 +71,24 @@ end
 
 Base.setindex!(m::Melody, event::Int, idx::Int) = setindex!(m.events, event, idx)
 
+"""
+    Melody(qns::NoteSequence,
+                search_start_step::Int=0,
+                gapbars::Int=1,
+                ignore_polyphony::Bool=false,
+                pad_end::Bool=false,
+                instrument::Int=1)
+
+Convert the given quantized notesequence to a melody. The melody is extracted starting from
+`search_start_step`. The melody extraction will be ended when there is a silence for more than
+`gapbars` amount of bars in music.
+
+If `ignore_polyphony` is true, only the highest pitch is kept when multiple pitches are encountered.
+Otherwise, an error is thrown.
+
+0 velocity notes are ignored when extracting the melody. If `pad_end` is true, the melody is padded with
+`MELODY_NO_EVENt` until the end of the bar.
+"""
 function Melody(qns::NoteSequence,
                 search_start_step::Int=0,
                 gapbars::Int=1,
@@ -128,6 +165,18 @@ function Melody(qns::NoteSequence,
     melody
 end
 
+"""
+    getnotesequence(melody::Melody;
+                    velocity::Int=100,
+                    instrument::Int=1,
+                    program::Int=0,
+                    sequence_start_time::Int=0,
+                    qpm::Float64=DEFAULT_QPM)
+
+Convert the given melody to a `NoteSequence`. The notes events will have the same `velocity`,
+`program` and `instrument`. The melody will start at `sequence_start_time` in the sequence
+and will have a tempo of `qpm` (quarter notes per minute).
+"""
 function getnotesequence(melody::Melody;
                          velocity::Int=100,
                          instrument::Int=1,
@@ -180,6 +229,13 @@ function getnotesequence(melody::Melody;
     ns
 end
 
+"""
+    setlength!(melody::Melody, steps::Int)
+
+Set the length of the melody to `steps`. If the given `steps` is greater than
+the length of the melody, the melody will be padded with `MELODY_NO_EVENT`s to the right.
+If `steps` is smaller than the length of the melody, the melody will be truncated.
+"""
 function setlength!(melody::Melody, steps::Int)
     oldlength = length(melody)
 
@@ -205,6 +261,12 @@ function setlength!(melody::Melody, steps::Int)
     melody
 end
 
+"""
+    addnote!(melody::Melody, pitch::Int, startstep::Int, endstep::Int)
+
+Adds the given note to the melody at `startstep` and `endstep`.
+The `endstep` will be set to a `MELODY_NOTE_OFF`.
+"""
 function addnote!(melody::Melody, pitch::Int, startstep::Int, endstep::Int)
     startstep >= endstep && throw(error("End step must be greater than start step."))
     setlength!(melody, endstep)
@@ -218,6 +280,11 @@ function addnote!(melody::Melody, pitch::Int, startstep::Int, endstep::Int)
     melody
 end
 
+"""
+    last_onoff_events(melody::Melody)
+
+Return the indices of the last midi pitch and `MELODY_NOTE_OFF` in the sequence.
+"""
 function last_onoff_events(melody::Melody)
     lastoff = length(melody)
     for i = (length(melody)-1):-1:-1
