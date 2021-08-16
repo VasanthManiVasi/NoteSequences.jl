@@ -325,11 +325,16 @@ Quantize a NoteSequence to absolute time based on the given steps per second (`s
 function absolutequantize!(ns::NoteSequence, sps::Int)
     ns.isquantized && throw(error("The NoteSequence is already quantized"))
 
-    for tempo in ns.tempos[2:end]
-        if tempo.qpm != ns.tempos[1].qpm
-            throw(error("The NoteSequence has multiple tempo changes"))
+    if isempty(ns.tempos)
+        push!(ns.tempos, Tempo(0, DEFAULT_QPM))
+    else
+        for tempo in ns.tempos[2:end]
+            if tempo.qpm != ns.tempos[1].qpm
+                throw(error("The NoteSequence has multiple tempo changes"))
+            end
         end
     end
+
     qpm = ns.tempos[1].qpm
 
     ns.total_time = quantizedstep(ns.total_time, ns.tpq, qpm, sps)
