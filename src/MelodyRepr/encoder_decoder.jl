@@ -1,5 +1,5 @@
 export MelodyOneHotEncoding
-import ..encodeindex, ..decodeindex
+import ..encode_event, ..decode_event
 
 using ..NoteSequences: MIN_MIDI_PITCH, MAX_MIDI_PITCH
 
@@ -42,11 +42,11 @@ function Base.getproperty(encoder::MelodyOneHotEncoding, sym::Symbol)
 end
 
 """
-    encodeindex(event::Int, encoder::MelodyOneHotEncoding)
+    encode_event(event::Int, encoder::MelodyOneHotEncoding)
 
 Encodes a `Melody` event to its corresponding one hot index.
 """
-function encodeindex(event::Int, encoder::MelodyOneHotEncoding)
+function encode_event(event::Int, encoder::MelodyOneHotEncoding)
     0 <= event < encoder.minpitch &&
         throw(error("Melody event is less than min melody pitch"))
     event >= encoder.maxpitch &&
@@ -65,15 +65,15 @@ function encodeindex(event::Int, encoder::MelodyOneHotEncoding)
 end
 
 """
-    decodeindex(idx::Int, encoder::MelodyOneHotEncoding)
+    decode_event(index::Int, encoder::MelodyOneHotEncoding)
 
 Decodes a one hot index to its corresponding `Melody` event.
 """
-function decodeindex(idx::Int, encoder::MelodyOneHotEncoding)
-    if idx < NUM_SPECIAL_MELODY_EVENTS + 1
-        event = idx - NUM_SPECIAL_MELODY_EVENTS
+function decode_event(index::Int, encoder::MelodyOneHotEncoding)
+    if index < NUM_SPECIAL_MELODY_EVENTS + 1
+        event = index - NUM_SPECIAL_MELODY_EVENTS
     else
-        event = idx - NUM_SPECIAL_MELODY_EVENTS + encoder.minpitch
+        event = index - NUM_SPECIAL_MELODY_EVENTS + encoder.minpitch
     end
 
     # Subtract one to convert from 1-based indexing

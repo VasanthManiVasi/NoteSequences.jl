@@ -26,7 +26,7 @@ function Base.show(io::IO, instrument::Instrument)
     C = length(instrument.controlchanges)
     P = length(instrument.pitchbends)
     pn = instrument.program
-    print(io, "Instrument(program = $pn) with $N Notes, $C ControlChange, $P PitchBend")
+    print(io, "Instrument(program = $pn) with $N Notes, $C Control Changes, $P Pitch Bends")
 end
 
 """

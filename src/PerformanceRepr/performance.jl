@@ -1,5 +1,5 @@
 export PerformanceEvent, Performance
-export getnotesequence, set_length
+export getnotesequence, setlength!
 
 using ..NoteSequences: SeqNote, DEFAULT_QPM, DEFAULT_TPQ
 using ..NoteSequences: MIN_MIDI_VELOCITY, MAX_MIDI_VELOCITY, MIN_MIDI_PITCH, MAX_MIDI_PITCH
@@ -235,7 +235,7 @@ function getnotesequence(performance::Performance,
                          instrument::Int = 1,
                          program::Int = -1)
 
-    ticks_per_step = second_to_tick(1, DEFAULT_QPM, DEFAULT_TPQ) / performance.steps_per_second
+    ticks_per_step = second2tick(1) / performance.steps_per_second
     ns = tosequence(performance, ticks_per_step, velocity, instrument, program)
     push!(ns.tempos, NoteSequences.Tempo(0, 120.0))
     push!(ns.timesignatures, MIDI.TimeSignatureEvent(0, 4, 4, 24, 8))
@@ -367,14 +367,14 @@ function trim_steps(performance::Performance, numsteps::Int)
 end
 
 """
-    set_length(performance::Performance, steps::Int)
+    setlength!(performance::Performance, steps::Int)
 
 Sets the total length of the `Performance` based on the length given by `steps`.
 
 If the length of the performance is greater than the given steps, it is trimmed.
 Otherwise, the performance is padded with `TIME_SHIFT`s.
 """
-function set_length(performance::Performance, steps::Int)
+function setlength!(performance::Performance, steps::Int)
     if performance.numsteps < steps
         append_steps(performance, steps - performance.numsteps)
     elseif performance.numsteps > steps
@@ -387,18 +387,12 @@ end
 """     binsize(velocity_bins)
 Returns the size of a bin given the total number of bins.
 """
-binsize(velocity_bins) = Int(ceil(
+binsize(velocity_bins::Int) = Int(ceil(
         (MAX_MIDI_VELOCITY - MIN_MIDI_VELOCITY + 1) / velocity_bins))
 
-velocity2bin(velocity, velocity_bins) = ((velocity - MIN_MIDI_VELOCITY) ÷ binsize(velocity_bins)) + 1
+velocity2bin(velocity::Int, velocity_bins::Int) = ((velocity - MIN_MIDI_VELOCITY) ÷ binsize(velocity_bins)) + 1
 
 """     bin2velocity(bin, velocity_bins)
 Returns a velocity value given a bin and the total number of velocity bins.
 """
-bin2velocity(bin, velocity_bins) = MIN_MIDI_VELOCITY + (bin - 1) * binsize(velocity_bins)
-
-"""     second_to_tick(second, qpm, tqp)
-Returns a MIDI tick corresponding to the given time in seconds,
-quarter notes per minute and the amount of ticks per quarter note.
-"""
-second_to_tick(second, qpm, tpq) = second / (1e-3 * ms_per_tick(qpm, tpq))
+bin2velocity(bin::Int, velocity_bins::Int) = MIN_MIDI_VELOCITY + (bin - 1) * binsize(velocity_bins)

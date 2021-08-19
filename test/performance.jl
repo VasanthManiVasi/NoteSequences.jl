@@ -23,23 +23,23 @@ const pe = PerformanceEvent
     ]
 
     for (event, index) in pairs
-        @test index == encodeindex(event, perfencoder)
-        @test event == decodeindex(index, perfencoder)
+        @test index == encode_event(event, perfencoder)
+        @test event == decode_event(index, perfencoder)
     end
 end
 
-@testset "Performance steps and set_length" begin
+@testset "Performance steps and setlength!" begin
     @testset "Add length" begin
         perf = Performance(100)
-        set_length(perf, 42)
+        setlength!(perf, 42)
         @test perf.numsteps == 42
         @test perf.events == [pe(TIME_SHIFT, 42)]
 
-        set_length(perf, 142)
+        setlength!(perf, 142)
         @test perf.numsteps == 142
         @test perf.events == [pe(TIME_SHIFT, 100), pe(TIME_SHIFT, 42)]
 
-        set_length(perf, 200)
+        setlength!(perf, 200)
         @test perf.numsteps == 200
         @test perf.events == [pe(TIME_SHIFT, 100), pe(TIME_SHIFT, 100)]
     end
@@ -58,7 +58,7 @@ end
             pe(NOTE_OFF, 67)
         ]
         append!(perf, events)
-        set_length(perf, 200)
+        setlength!(perf, 200)
         result_events = [
             pe(NOTE_ON, 60),
             pe(TIME_SHIFT, 100),
@@ -71,7 +71,7 @@ end
 
         @test perf.events == result_events
 
-        set_length(perf, 50)
+        setlength!(perf, 50)
         result_events = [
             pe(NOTE_ON, 60),
             pe(TIME_SHIFT, 50)

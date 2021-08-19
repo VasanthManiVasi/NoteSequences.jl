@@ -16,8 +16,8 @@ using NoteSequences.MelodyRepr: MELODY_NOTE_OFF, MELODY_NO_EVENT
         ]
 
         for (event, index) in pairs
-            @test index == encodeindex(event, encoder)
-            @test event == decodeindex(index, encoder)
+            @test index == encode_event(event, encoder)
+            @test event == decode_event(index, encoder)
         end
     end
 

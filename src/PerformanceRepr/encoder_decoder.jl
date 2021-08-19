@@ -1,5 +1,5 @@
 export PerformanceOneHotEncoding
-import ..encodeindex, ..decodeindex
+import ..encode_event, ..decode_event
 
 using ..NoteSequences: MIN_MIDI_PITCH, MAX_MIDI_PITCH
 
@@ -43,11 +43,11 @@ function Base.getproperty(encoder::PerformanceOneHotEncoding, sym::Symbol)
 end
 
 """
-    encodeindex(event::PerformanceEvent, encoder::PerformanceOneHotEncoding)
+    encode_event(event::PerformanceEvent, encoder::PerformanceOneHotEncoding)
 
 Encodes a `PerformanceEvent` to its corresponding one hot index.
 """
-function encodeindex(event::PerformanceEvent, encoder::PerformanceOneHotEncoding)
+function encode_event(event::PerformanceEvent, encoder::PerformanceOneHotEncoding)
     # Start at one to account for 1-based indexing
     offset = 1
     for (type, min, max) in encoder.event_ranges
@@ -61,16 +61,16 @@ function encodeindex(event::PerformanceEvent, encoder::PerformanceOneHotEncoding
 end
 
 """
-    decodeindex(idx::Int, encoder::PerformanceOneHotEncoding)
+    decode_event(index::Int, encoder::PerformanceOneHotEncoding)
 
 Decodes a one hot index to its corresponding `PerformanceEvent`.
 """
-function decodeindex(idx::Int, encoder::PerformanceOneHotEncoding)
+function decode_event(index::Int, encoder::PerformanceOneHotEncoding)
     # Start at one to account for 1-based indexing
     offset = 1
     for (type, min, max) in encoder.event_ranges
-        if idx < offset + (max - min + 1)
-            return PerformanceEvent(type, min + idx - offset)
+        if index < offset + (max - min + 1)
+            return PerformanceEvent(type, min + index - offset)
         end
         offset += (max - min + 1)
     end

@@ -6,6 +6,7 @@ using DataStructures
 include("constants.jl")
 include("instruments.jl")
 include("notesequence.jl")
+include("utils.jl")
 include("PerformanceRepr/PerformanceRepr.jl")
 include("MelodyRepr/MelodyRepr.jl")
 
@@ -15,6 +16,6 @@ export Performance, PerformanceEvent
 using .MelodyRepr
 export Melody
 
-export encodeindex, decodeindex
+export encode_event, decode_event
 
 end

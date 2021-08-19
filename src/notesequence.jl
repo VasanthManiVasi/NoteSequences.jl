@@ -1,4 +1,4 @@
-export NoteSequence, midi_to_notesequence, notesequence_to_midi, second2tick
+export NoteSequence, midifile
 
 using MIDI
 using MIDI: TimeSignatureEvent, KeySignatureEvent, SetTempoEvent
@@ -137,11 +137,11 @@ function Base.show(io::IO, ns::NoteSequence)
 end
 
 """
-    midi_to_notesequence(midi::MIDIFile)
+    NoteSequence(midi::MIDIFile)
 
 Return [`NoteSequence`](@ref) from a `MIDIFile`.
 """
-function midi_to_notesequence(midi::MIDIFile)
+function NoteSequence(midi::MIDIFile)
     midi = deepcopy(midi)
     ns = NoteSequence(Int(midi.tpq), isquantized=false)
 
@@ -231,11 +231,11 @@ function getinstruments(ns::NoteSequence)
 end
 
 """
-    notesequence_to_midi(ns::NoteSequence)
+    midifile(ns::NoteSequence)
 
 Return a MIDIFile from a [`NoteSequence`](@ref)
 """
-function notesequence_to_midi(ns::NoteSequence)
+function midifile(ns::NoteSequence)
     midifile = MIDIFile(1, ns.tpq, MIDITrack[])
     metatrack = MIDITrack()
 
@@ -346,6 +346,13 @@ function absolutequantize(ns::NoteSequence, sps::Int)
     absolutequantize!(ns, sps)
 end
 
+"""
+    relativequantize!(ns::NoteSequence, steps_per_quarter::Int)
+    relativequantize(ns::NoteSequence, steps_per_quarter::Int)
+
+Quantize a NoteSequence relative to its tempo. `steps_per_quarter` is the amount of
+quantized time steps each quarter note will be divided into.
+"""
 function relativequantize!(ns::NoteSequence, steps_per_quarter::Int)
     ns.isquantized && throw(error("The NoteSequence is already quantized"))
 
@@ -578,10 +585,6 @@ function applysustainchanges(sequence::NoteSequence, sustaincontrolnumber::Int=6
     applysustainchanges!(ns, sustaincontrolnumber)
 end
 
-function second2tick(seconds::Float64, tpq::Int=DEFAULT_TPQ,  qpm::Float64=DEFAULT_QPM)
-    round(seconds * 1e3 / ms_per_tick(tpq, qpm))
-end
-
 # Extended by sub modules
-function encodeindex end
-function decodeindex end
+function encode_event end
+function decode_event end
