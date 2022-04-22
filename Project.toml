@@ -11,6 +11,7 @@ MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 MusicVisualizations = "8e838768-4b4f-4130-9d6d-43f7b35ca0d6"
 
 [compat]
+DataStructures = "0.18"
 MIDI = "2"
 julia = "1"
 
